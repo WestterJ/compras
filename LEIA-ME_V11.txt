@@ -1,0 +1,21 @@
+MINHA LISTA DE COMPRAS V11
+Arquivos: index.html + compras-supabase.js (juntos, na raiz). APAGUE do repositório: compras-lista-v9.js e o compras-supabase.js antigo
+(era um carregador que buscava o código em raw.githubusercontent.com; o navegador bloqueia script servido como texto puro).
+
+LISTA (agora dentro do index.html, sem script externo)
+- Categorias abrem/fecham; abertas só as com itens pendentes (sua escolha fica salva). Expandir/Recolher tudo. Marcar todos (com confirmação).
+- Editar item na própria linha (nome e categoria), sincronizado com o Supabase.
+- "Estou em": mostra o menor preço e o último com sigla do mercado (✓ Melhor aqui / diferença). Filtro por supermercado.
+NOTAS COM IA
+- Cada item da nota é associado ao item mais parecido da lista. Dúvida (⚠): você escolhe o item ou cria novo; só salva após confirmar.
+- Histórico mostra a loja (sigla) e o nome original da nota; o ✎ permite corrigir a associação depois (sincroniza).
+- JSON da IA cortado/inválido é reparado; prazo de 130 s; mensagem clara de cota esgotada.
+SUPABASE
+- Associação salva em shopping_purchase_items.product_id; texto original da nota em product_name.
+
+EDGE FUNCTION dynamic-service (necessário para a IA de notas funcionar bem)
+1) No tipo de MODOS acrescentar: semRaciocinio?: boolean
+2) Em MODOS acrescentar: nota: { texto: 4000, tokens: 8000, temp: 0.1, imagem: true, semRaciocinio: true },
+3) Trocar a linha do thinkingConfig por:
+   const thinkingConfig = (rapido || modo?.semRaciocinio) ? { thinkingBudget: 0 } : (thinkingEnv ? { thinkingBudget: Number(thinkingEnv) } : null);
+Motivo: sem o modo "nota" a função limita a saída a 1800 tokens e o raciocínio interno consome quase tudo (log: 58 tokens de saída, JSON cortado).

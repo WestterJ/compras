@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#003a70">
-<title>Minha Lista de Compras | V7</title>
+<title>Minha Lista de Compras | V11</title>
 <style>
 :root{--bg:#fff9c9;--paper:#fffdf0;--ink:#514d38;--muted:#928b68;--line:#e8dfaa;--accent:#c5a94c;--green:#66835c;--red:#b85b4b;--shadow:0 8px 24px #766b3215}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
@@ -93,10 +93,15 @@ html.dark .auth-card,html.dark .receipt-drop{background:#14263b;border-color:#31
 .app-page #history th,.app-page #history td{padding:10px 8px;text-align:left;border-bottom:1px solid var(--border)}
 .app-page #activity .item{margin:8px 0}
 @media(max-width:600px){.app-page #history{overflow-x:auto}.app-page #history table{min-width:440px}}
-</style></head>
+</style><style>
+.listtools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}.listtools label{display:flex;gap:6px;align-items:center;margin:0}.listtools input,.listtools select{min-width:130px}
+.cat-toggle{display:flex;width:100%;justify-content:space-between;align-items:center;background:none;border:0;padding:8px 2px;color:inherit;font:inherit;font-weight:750;cursor:pointer;text-align:left}.cat-toggle small{font-weight:400;opacity:.7}
+.price-insight b{font-weight:700}#history small.note{display:block}
+</style>
+</head>
 <body>
 <header class="app-header">
- <div class="header-left"><button id="mobileMenu" class="mobile-menu-btn" aria-label="Abrir menu">☰</button><div class="brand-mark">🛒</div><div class="brand-copy"><h1>Minha Lista de Compras</h1><small>Versão V7 · Compras em família</small></div></div>
+ <div class="header-left"><button id="mobileMenu" class="mobile-menu-btn" aria-label="Abrir menu">☰</button><div class="brand-mark">🛒</div><div class="brand-copy"><h1>Minha Lista de Compras</h1><small>Versão V11 · Compras em família</small></div></div>
  <div class="header-actions"><span class="cloud-pill" id="headerSync">● <span>Modo local</span></span><button id="themeToggle" class="theme-toggle" aria-label="Alternar tema" title="Alternar tema">◐</button></div>
 </header>
 <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
@@ -120,6 +125,8 @@ html.dark .auth-card,html.dark .receipt-drop{background:#14263b;border-color:#31
   <div class="row"><input id="search" placeholder="Buscar produto na lista..." aria-label="Buscar produto"><button class="small" id="addOpen">＋ Produto</button></div>
   <div class="toolbar filters" id="filters"></div>
   <div class="row" style="justify-content:space-between"><span class="note" id="progress">0 itens marcados</span><button class="small ghost" id="clearChecks">Desmarcar todos</button></div>
+  <div class="listtools"><button type="button" class="small primary" id="markAll">✔ Marcar todos</button><button type="button" class="small" id="openAll">Expandir</button><button type="button" class="small" id="closeAll">Recolher</button>
+   <label>Estou em <input id="curStore" list="storeList" placeholder="Supermercado"></label><label>Filtrar <select id="storeFilter"></select></label><datalist id="storeList"></datalist></div>
   <div id="list"></div>
  </div>
  <div class="panel" id="panel-forecast">
@@ -187,7 +194,7 @@ html.dark .auth-card,html.dark .receipt-drop{background:#14263b;border-color:#31
   <h2>Registrar preço pago</h2>
   <form id="priceForm">
    <label>Produto</label><input id="priceProduct" list="products" placeholder="Digite ou escolha um produto" required style="width:100%"><datalist id="products"></datalist>
-   <div class="formgrid"><div><label>Preço pago (R$)</label><input id="priceValue" type="number" min="0.01" step=".01" placeholder="0,00" required style="width:100%"></div><div><label>Data da compra</label><input id="priceDate" type="date" required style="width:100%"></div><div class="wide"><label>Loja / observação</label><input id="priceStore" placeholder="Ex.: supermercado, promoção..." style="width:100%"></div></div>
+   <div class="formgrid"><div><label>Preço pago (R$)</label><input id="priceValue" type="number" min="0.01" step=".01" placeholder="0,00" required style="width:100%"></div><div><label>Data da compra</label><input id="priceDate" type="date" required style="width:100%"></div><div class="wide"><label>Loja / observação</label><input id="priceStore" list="storeList" placeholder="Ex.: supermercado, promoção..." style="width:100%"></div></div>
    <button class="primary" style="width:100%;margin-top:12px">Salvar preço</button>
   </form>
  </div>
@@ -328,14 +335,46 @@ function renderReplenishment(){
    save();toast(name+" incluído na lista");
  });
 }
+const LS=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}};
+let openCats=LS('compras_open',{}),curStore=localStorage.getItem('compras_store')||'',storeFilter='',editId=null,reIdx=-1;
+function sigla(s){s=(s||'').trim();if(!s)return'';const w=s.split(/\s+/).filter(x=>x.length>2);return(w.length>1?w.map(x=>x[0]).join('').slice(0,3):s.slice(0,4)).toUpperCase()}
+function storesList(){return[...new Set(data.prices.map(p=>(p.store||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'))}
+function priceInfo(i){
+ const all=data.prices.filter(x=>norm(x.name)===norm(i.name)).sort((a,b)=>b.date.localeCompare(a.date));
+ if(!all.length)return'<small>Sem preço registrado</small>';
+ const last=all[0],best=all.reduce((m,x)=>Number(x.value)<Number(m.value)?x:m,all[0]);
+ const here=curStore?all.filter(x=>norm(x.store)===norm(curStore)):[],hb=here.length?here.reduce((m,x)=>x.value<m.value?x:m,here[0]):null;
+ const tag=t=>t?` · <b title="${esc(t)}">${esc(sigla(t))}</b>`:'';
+ let h=`<small>Último: ${money(last.value)} · ${dateBR(last.date)}${tag(last.store)}</small><div class="price-insight"><span class="best">Menor: ${money(best.value)}${tag(best.store)}</span>`;
+ if(curStore)h+=hb?(hb.value<=best.value+.005?`<span class="good">✓ Melhor aqui (${money(hb.value)})</span>`:`<span class="bad">Aqui ${money(hb.value)} · +${money(hb.value-best.value)}</span>`):'<span class="neutral">Sem preço aqui</span>';
+ return h+'</div>';
+}
+function rowHTML(i){
+ if(editId===i.id)return`<div class="item"><div class="name"><input id="editName" value="${esc(i.name)}" style="width:100%"><select id="editCat" style="width:100%;margin-top:6px">${categories.map(c=>`<option ${c===i.cat?'selected':''}>${c}</option>`).join('')}</select></div><div class="item-actions"><button class="small primary" data-editok="${i.id}">✓</button><button class="small ghost" data-editno="1">✕</button></div></div>`;
+ return`<div class="item ${i.checked?'done':''}"><input type="checkbox" data-check="${i.id}" ${i.checked?'checked':''}><div class="name">${esc(i.name)}${priceInfo(i)}</div><div class="item-actions"><button class="small ghost" data-edit="${i.id}" title="Editar">✎</button><button class="small ghost" data-price="${i.id}" title="Registrar preço">＋</button><button class="small ghost" data-del="${i.id}" title="Excluir">🗑</button></div></div>`;
+}
+function renderList(shown){
+ const q=document.getElementById("search").value,sf=storeFilter?shown.filter(i=>data.prices.some(p=>norm(p.name)===norm(i.name)&&norm(p.store)===norm(storeFilter))):shown;
+ document.getElementById("list").innerHTML=categories.map(cat=>{const arr=sf.filter(i=>i.cat===cat);if(!arr.length)return"";
+  const pend=arr.filter(i=>!i.checked).length,op=q?true:(cat in openCats?openCats[cat]:pend>0);
+  return`<div class="category"><h3><button class="cat-toggle" data-cat-toggle="${cat}" aria-expanded="${op}"><span>${op?'▾':'▸'} ${cat}</span><small>${pend} pendente(s) de ${arr.length}</small></button></h3>${op?arr.map(rowHTML).join(""):""}</div>`}).join("")||'<div class="empty">Nenhum item.</div>';
+ document.querySelectorAll("[data-cat-toggle]").forEach(b=>b.onclick=()=>{openCats[b.dataset.catToggle]=b.getAttribute("aria-expanded")!=="true";localStorage.setItem('compras_open',JSON.stringify(openCats));render()});
+ document.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>{editId=b.dataset.edit;render();document.getElementById("editName")?.focus()});
+ document.querySelectorAll("[data-editno]").forEach(b=>b.onclick=()=>{editId=null;render()});
+ document.querySelectorAll("[data-editok]").forEach(b=>b.onclick=()=>{const i=data.items.find(x=>String(x.id)===b.dataset.editok),nm=document.getElementById("editName").value.trim(),cat=document.getElementById("editCat").value;
+  if(!nm)return toast("O nome não pode ficar vazio");
+  if(data.items.some(x=>x!==i&&norm(x.name)===norm(nm)))return toast("Já existe um item com esse nome");
+  const old=i.name;i.name=nm;i.cat=cat;editId=null;logActivity("Editou item",old===nm?nm:old+" → "+nm);save();toast("Item atualizado")});
+ document.getElementById("storeFilter").innerHTML='<option value="">Todas as lojas</option>'+storesList().map(t=>`<option ${t===storeFilter?'selected':''}>${esc(t)}</option>`).join("");
+ document.getElementById("storeList").innerHTML=storesList().map(t=>`<option value="${esc(t)}">`).join("");
+}
 function render(){
  const q=document.getElementById("search").value.toLowerCase();
  const cats=["Todos",...categories.filter(c=>data.items.some(i=>i.cat===c))];
  document.getElementById("filters").innerHTML=cats.map(c=>`<button class="chip ${active===c?'active':''}" data-cat="${c}">${c}</button>`).join("");
  document.querySelectorAll("[data-cat]").forEach(b=>b.onclick=()=>{active=b.dataset.cat;render()});
  let shown=data.items.filter(i=>(active==="Todos"||i.cat===active)&&i.name.toLowerCase().includes(q));
- document.getElementById("list").innerHTML=categories.map(cat=>{let arr=shown.filter(i=>i.cat===cat);if(!arr.length)return "";
- return `<div class="category"><h3>${cat}</h3>${arr.map(i=>{let p=data.prices.filter(x=>norm(x.name)===norm(i.name)).sort((a,b)=>b.date.localeCompare(a.date))[0];let all=data.prices.filter(x=>norm(x.name)===norm(i.name)).sort((a,b)=>b.date.localeCompare(a.date));let best=all.length?all.reduce((m,x)=>Number(x.value)<Number(m.value)?x:m,all[0]):null;return `<div class="item ${i.checked?'done':''}"><input type="checkbox" data-check="${i.id}" ${i.checked?'checked':''}><div class="name">${esc(i.name)}${p?`<small>Última compra: ${dateBR(p.date)} · ${money(p.value)}</small><div class="price-insight"><span class="best">Menor: ${money(best.value)}${best.date?` · ${dateBR(best.date)}`:""}</span><span>Último: ${money(p.value)}</span></div>`:'<small>Sem preço registrado</small>'}</div><div class="item-actions"><button class="small ghost" data-price="${i.id}" title="Registrar preço">＋</button><button class="small ghost" data-del="${i.id}" title="Excluir">×</button></div></div>`}).join("")}</div>`}).join("")||'<div class="empty">Nenhum produto encontrado.</div>';
+ renderList(shown);
  document.querySelectorAll("[data-check]").forEach(e=>e.onchange=()=>{let i=data.items.find(x=>x.id===e.dataset.check);i.checked=e.checked;logActivity(e.checked?"Marcou como comprado":"Desmarcou",i.name);save()});
  document.querySelectorAll("[data-del]").forEach(e=>e.onclick=()=>{let removed=data.items.find(x=>x.id===e.dataset.del);data.items=data.items.filter(x=>x.id!==e.dataset.del);logActivity("Excluiu",removed&&removed.name);save()});
  document.querySelectorAll("[data-price]").forEach(e=>e.onclick=()=>{let i=data.items.find(x=>x.id===e.dataset.price);document.getElementById("priceProduct").value=i.name;document.getElementById("priceValue").focus()});
@@ -345,8 +384,13 @@ function render(){
  document.getElementById("trackedItems").textContent=new Set(data.prices.map(p=>norm(p.name))).size;
  let latest=[...data.prices].sort((a,b)=>b.date.localeCompare(a.date))[0];document.getElementById("lastSpend").textContent=latest?money(data.prices.filter(p=>p.date===latest.date).reduce((t,p)=>t+p.value*(p.qty||1),0)):"R$ 0,00";
  document.getElementById("products").innerHTML=data.items.map(i=>`<option value="${esc(i.name)}">`).join("");
- let hist=[...data.prices].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,8);
- document.getElementById("history").innerHTML=hist.length?`<table><tr><th>Produto</th><th>Data</th><th>Preço</th></tr>${hist.map(p=>`<tr><td>${esc(p.name)}</td><td>${dateBR(p.date)}</td><td>${money(p.value)}</td></tr>`).join("")}</table>`:'<div class="empty">Nenhum preço registrado.</div>';
+ let hist=[...data.prices].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,15);
+ document.getElementById("history").innerHTML=hist.length?`<table><tr><th>Produto</th><th>Data</th><th>Loja</th><th>Preço</th></tr>${hist.map(p=>{const k=data.prices.indexOf(p);const nm=reIdx===k?`<input id="reInput" list="products" value="${esc(p.name)}" style="width:100%"><button class="small primary" data-reok="${k}">✓</button><button class="small ghost" data-reno="1">✕</button>`:`${esc(p.name)} <button class="small ghost" data-re="${k}" title="Revisar associação">✎</button>${p.receiptName&&norm(p.receiptName)!==norm(p.name)?`<small class="note">Na nota: ${esc(p.receiptName)}</small>`:""}`;return`<tr><td>${nm}</td><td>${dateBR(p.date)}</td><td title="${esc(p.store||"")}">${esc(sigla(p.store))}</td><td>${money(p.value)}</td></tr>`}).join("")}</table>`:'<div class="empty">Nenhum preço registrado.</div>';
+ document.querySelectorAll("[data-re]").forEach(b=>b.onclick=()=>{reIdx=Number(b.dataset.re);render();document.getElementById("reInput")?.focus()});
+ document.querySelectorAll("[data-reno]").forEach(b=>b.onclick=()=>{reIdx=-1;render()});
+ document.querySelectorAll("[data-reok]").forEach(b=>b.onclick=()=>{const p=data.prices[Number(b.dataset.reok)],v=document.getElementById("reInput").value.trim();if(!v)return;
+  let it=data.items.find(x=>norm(x.name)===norm(v));if(!it)data.items.push(it={id:uid(),name:v,cat:"Outros",checked:true});
+  const old=p.name;p.name=it.name;p.dirty=1;reIdx=-1;logActivity("Reassociou preço",old+" → "+it.name);save();toast("Associação atualizada")});
  let activity=data.activity||[];
  document.getElementById("activity").innerHTML=activity.length?activity.slice(0,8).map(a=>`<div class="item"><div class="name"><b>${esc(a.actor)}</b> ${esc(a.action.toLowerCase())}<small>${esc(a.item)} · ${new Date(a.at).toLocaleString("pt-BR")}</small></div></div>`).join(""):'<div class="empty">Nenhuma atividade registrada.</div>';
  document.getElementById("actorName").value=(data.profile&&data.profile.actor)||"";
@@ -357,6 +401,12 @@ function norm(s){return (s||"").toLowerCase().normalize("NFD").replace(/[\u0300-
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 document.getElementById("search").oninput=render;
 document.getElementById("forecastWindow").onchange=renderReplenishment;
+document.getElementById("curStore").value=curStore;
+document.getElementById("curStore").oninput=e=>{curStore=e.target.value.trim();localStorage.setItem('compras_store',curStore);render()};
+document.getElementById("storeFilter").onchange=e=>{storeFilter=e.target.value;render()};
+document.getElementById("openAll").onclick=()=>{categories.forEach(c=>openCats[c]=true);localStorage.setItem('compras_open',JSON.stringify(openCats));render()};
+document.getElementById("closeAll").onclick=()=>{categories.forEach(c=>openCats[c]=false);localStorage.setItem('compras_open',JSON.stringify(openCats));render()};
+document.getElementById("markAll").onclick=()=>{const p=data.items.filter(i=>!i.checked);if(!p.length)return toast("Todos já estão marcados");if(!confirm("Marcar "+p.length+" itens como comprados?"))return;p.forEach(i=>i.checked=true);logActivity("Marcou todos",p.length+" produtos");save()};
 document.getElementById("clearChecks").onclick=()=>{data.items.forEach(i=>i.checked=false);save()};
 document.getElementById("addOpen").onclick=()=>document.getElementById("modal").style.display="flex";
 document.getElementById("closeModal").onclick=()=>document.getElementById("modal").style.display="none";
