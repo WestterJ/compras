@@ -1,79 +1,68 @@
-/* Compras V9 — melhorias da tela Lista de compras.
- * Carregue este arquivo DEPOIS de compras-supabase.js no index.html.
- * Categorias recolhíveis; ação para marcar tudo; renomear item na própria tela;
- * supermercado atual e comparação com o histórico de preços.
+/* Compras V10 — recursos da tela Lista de compras.
+ * IMPORTANTE: inclua este arquivo no index.html depois de compras-supabase.js.
+ * O código usa a binding global `data` criada pelo script clássico do index.
  */
 (()=>{
  'use strict';
  const $=id=>document.getElementById(id);
- if(!$('list')||typeof window.render!=='function'||typeof window.data==='undefined')return;
- const KEY_OPEN='compras_v9_category_open',KEY_STORE='compras_v9_current_store';
- const readOpen=()=>{try{return JSON.parse(localStorage.getItem(KEY_OPEN)||'{}')}catch{return {}}};
- const normalized=s=>(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+ if(!$('list')||typeof window.render!=='function'||typeof data==='undefined')return;
+ const OPEN_KEY='compras_v10_open',STORE_KEY='compras_v10_store',FILTER_KEY='compras_v10_store_filter';
+ const clean=s=>(s||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
- let openState=readOpen(),currentStore=localStorage.getItem(KEY_STORE)||'';
- const data=()=>window.data;
- const getPrices=item=>(data().prices||[]).filter(p=>normalized(p.name)===normalized(item.name)||normalized(p.receiptName)===normalized(item.name)).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
- function priceBadge(item){
-  const prices=getPrices(item);if(!prices.length)return '';
-  const latest=prices[0],lowest=prices.reduce((best,p)=>Number(p.value)<Number(best.value)?p:best,prices[0]);
-  const storePrices=currentStore?prices.filter(p=>normalized(p.store)===normalized(currentStore)):[];
-  let msg=`Última compra: ${latest.store||'supermercado não informado'} · ${Number(latest.value).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`;
-  if(currentStore){
-   if(!storePrices.length)msg+=` · Sem preço registrado em ${currentStore}`;
-   else {
-    const currentLatest=storePrices[0],currentLow=storePrices.reduce((best,p)=>Number(p.value)<Number(best.value)?p:best,storePrices[0]);
-    const isBest=Number(currentLow.value)<=Number(lowest.value)+0.005;
-    msg+=` · ${currentStore}: último ${Number(currentLatest.value).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`;
-    msg+=isBest?' · menor preço registrado':' · menor histórico: '+Number(lowest.value).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})+' ('+(lowest.store||'loja não informada')+')';
-   }
-  } else msg+=` · menor: ${Number(lowest.value).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} (${lowest.store||'loja não informada'})`;
-  return msg;
- }
- function addToolbar(){
+ const money=n=>Number(n||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+ const savedOpen=()=>{try{return JSON.parse(localStorage.getItem(OPEN_KEY)||'{}')}catch{return {}}};
+ let open=savedOpen(),store=localStorage.getItem(STORE_KEY)||'',storeFilter=localStorage.getItem(FILTER_KEY)||'';
+ const prices=()=>Array.isArray(data.prices)?data.prices:[];
+ function findPrices(item){return prices().filter(p=>clean(p.name)===clean(item.name)||clean(p.receiptName)===clean(item.name)).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')))}
+ function storeNames(){return [...new Set(prices().map(p=>(p.store||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'))}
+ function buildToolbar(){
   const panel=$('panel-list');if(!panel)return;
-  let bar=$('comprasV9Toolbar');
-  if(!bar){bar=document.createElement('div');bar.id='comprasV9Toolbar';bar.className='row';bar.style.cssText='justify-content:space-between;flex-wrap:wrap;margin:10px 0';
-   const progress=$('progress');if(progress?.parentElement)progress.parentElement.insertAdjacentElement('afterend',bar);else panel.insertBefore(bar,$('list'));
-  }
+  let bar=$('comprasV10Toolbar');if(!bar){bar=document.createElement('div');bar.id='comprasV10Toolbar';bar.className='toolbar';bar.style.cssText='display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0';const progress=$('progress');(progress?.parentElement||panel).insertAdjacentElement('afterend',bar)}
   bar.replaceChildren();
-  const mark=document.createElement('button');mark.type='button';mark.className='small primary';mark.textContent='Marcar todos os itens';mark.title='Marcar como comprados todos os itens ainda desmarcados';
-  mark.onclick=()=>{const pending=data().items.filter(i=>!i.checked);if(!pending.length){window.toast?.('Todos os itens já estão marcados.');return}pending.forEach(i=>i.checked=true);window.logActivity?.('Marcou todos os itens',pending.length+' produtos');window.save();window.toast?.(pending.length+' item(ns) marcados como comprados')};
-  const storeWrap=document.createElement('label');storeWrap.style.cssText='display:flex;align-items:center;gap:7px;margin:0;flex:1;min-width:220px';storeWrap.textContent='Supermercado atual';
-  const store=document.createElement('input');store.type='text';store.value=currentStore;store.placeholder='Ex.: Supermercado Central';store.setAttribute('aria-label','Supermercado onde estou');store.style.cssText='max-width:300px;flex:1';
-  store.onchange=()=>{currentStore=store.value.trim();localStorage.setItem(KEY_STORE,currentStore);decorateList()};store.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();store.blur()}};
-  storeWrap.append(store);bar.append(mark,storeWrap);
+  const expand=document.createElement('button');expand.type='button';expand.className='small';expand.textContent='Expandir tudo';expand.onclick=()=>setAllOpen(true);
+  const collapse=document.createElement('button');collapse.type='button';collapse.className='small';collapse.textContent='Recolher tudo';collapse.onclick=()=>setAllOpen(false);
+  const mark=document.createElement('button');mark.type='button';mark.className='small primary';mark.textContent='Marcar todos';mark.onclick=()=>{const pending=data.items.filter(i=>!i.checked);if(!pending.length)return toast('Todos os itens já estão marcados.');pending.forEach(i=>i.checked=true);logActivity('Marcou todos os itens',pending.length+' produtos');save();toast(pending.length+' item(ns) marcados')};
+  const label=document.createElement('label');label.style.cssText='display:flex;align-items:center;gap:6px;margin:0;flex:1 1 200px';label.append('Estou em:');
+  const input=document.createElement('input');input.type='text';input.value=store;input.placeholder='Nome do supermercado';input.setAttribute('aria-label','Supermercado atual');input.style.cssText='flex:1;min-width:145px';input.onchange=()=>{store=input.value.trim();localStorage.setItem(STORE_KEY,store);decorate()};input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();input.blur()}};label.append(input);
+  const filterLabel=document.createElement('label');filterLabel.style.cssText='display:flex;align-items:center;gap:6px;margin:0;flex:1 1 180px';filterLabel.append('Filtrar loja:');
+  const select=document.createElement('select');select.setAttribute('aria-label','Filtrar histórico por supermercado');select.style.cssText='flex:1;min-width:140px';select.innerHTML='<option value="">Todas as lojas</option>'+storeNames().map(s=>`<option value="${esc(s)}" ${clean(s)===clean(storeFilter)?'selected':''}>${esc(s)}</option>`).join('');select.onchange=()=>{storeFilter=select.value;localStorage.setItem(FILTER_KEY,storeFilter);decorate()};filterLabel.append(select);
+  bar.append(expand,collapse,mark,label,filterLabel);
  }
- function decorateList(){
+ function setAllOpen(value){document.querySelectorAll('#list .category').forEach(section=>{const key=section.dataset.v10Key;if(key)open[key]=value});localStorage.setItem(OPEN_KEY,JSON.stringify(open));decorate()}
+ function itemSummary(item){
+  const ps=findPrices(item);if(!ps.length)return 'Sem preço registrado';
+  const last=ps[0],lowest=ps.reduce((a,p)=>Number(p.value)<Number(a.value)?p:a,ps[0]);
+  const storePs=store?ps.filter(p=>clean(p.store)===clean(store)):[];
+  const storeShort=store?store.trim().split(/\s+/).slice(0,2).join(' '):'';
+  const indicator=storePs.length?(Number(storePs.reduce((a,p)=>Number(p.value)<Number(a.value)?p:a,storePs[0]).value)<=Number(lowest.value)+.005?'✓':'!'):'?';
+  const bestText=storePs.length?(indicator==='✓'?`Melhor preço em ${storeShort}`:`Menor: ${money(lowest.value)} · ${lowest.store||'loja desconhecida'}`):`Menor: ${money(lowest.value)} · ${lowest.store||'loja desconhecida'}`;
+  const storeMark=last.store?` 🏬 ${last.store}`:' 🏬 Loja não informada';
+  return `Último: ${money(last.value)} · ${last.date||'data desconhecida'}${storeMark} · ${bestText}${store?` · ${indicator} ${storeShort}`:''}`;
+ }
+ function decorate(){
   const root=$('list');if(!root)return;
   root.querySelectorAll('.category').forEach((section,index)=>{
-   const heading=section.querySelector('h3');if(!heading)return;
-   const name=heading.textContent.trim(),items=[...section.querySelectorAll('.item')].filter(row=>row.querySelector('[data-check]'));
-   const key=name+'#'+index,hasPending=items.some(row=>!row.querySelector('[data-check]').checked);
-   if(!(key in openState))openState[key]=hasPending;
-   let body=section.querySelector(':scope > .category-content');
-   if(!body){body=document.createElement('div');body.className='category-content';[...section.children].filter(child=>child!==heading).forEach(child=>body.append(child));section.append(body)}
-   let toggle=section.querySelector(':scope > .category-toggle');
-   if(!toggle){toggle=document.createElement('button');toggle.type='button';toggle.className='category-toggle';toggle.style.cssText='display:flex;width:100%;align-items:center;justify-content:space-between;text-align:left;background:transparent;border:0;padding:8px 2px;color:inherit;font-weight:750';heading.replaceWith(toggle)}
-   toggle.innerHTML=`<span>${esc(name)} <small class="note">${items.length} item(ns) · ${items.filter(row=>!row.querySelector('[data-check]').checked).length} pendente(s)</small></span><span aria-hidden="true">${openState[key]?'▾':'▸'}</span>`;
-   toggle.setAttribute('aria-expanded',String(!!openState[key]));body.hidden=!openState[key];toggle.onclick=()=>{openState[key]=!openState[key];localStorage.setItem(KEY_OPEN,JSON.stringify(openState));body.hidden=!openState[key];toggle.setAttribute('aria-expanded',String(!!openState[key]));toggle.lastElementChild.textContent=openState[key]?'▾':'▸'};
-   items.forEach(row=>{
-    const nameNode=row.querySelector('.name');if(nameNode){let badge=nameNode.querySelector('[data-v9-store]');if(!badge){badge=document.createElement('small');badge.dataset.v9Store='1';nameNode.append(badge)}badge.textContent=priceBadge(data().items.find(i=>String(i.id)===String(row.querySelector('[data-check]')?.dataset.check))||{name:''})}
-    const actions=row.querySelector('.item-actions');if(actions&&!actions.querySelector('[data-v9-edit]')){const edit=document.createElement('button');edit.type='button';edit.className='small ghost';edit.dataset.v9Edit='1';edit.textContent='✎';edit.title='Editar nome do item';edit.setAttribute('aria-label','Editar nome do item');edit.onclick=async()=>{
-      const checkbox=row.querySelector('[data-check]'),item=data().items.find(i=>String(i.id)===String(checkbox?.dataset.check));if(!item)return;
-      const next=prompt('Editar nome do item:',item.name);if(next===null)return;const newName=next.trim();if(!newName)return window.toast?.('O nome não pode ficar vazio.');
-      const oldName=item.name;item.name=newName;
-      try{
-       const client=window.supabase?.createClient?.('https://ytsabhbkywymtevkeokg.supabase.co','sb_publishable_cyIolmmdF5zKN0rAOJQOXg_ECcSq7z6');
-       if(client&&/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(String(item.id))){const {error}=await client.from('shopping_items').update({name:newName,updated_at:new Date().toISOString()}).eq('id',item.id);if(error)throw error}
-       window.logActivity?.('Editou item',oldName+' → '+newName);window.save();window.toast?.('Item atualizado');
-      }catch(error){item.name=oldName;window.toast?.('Não foi possível sincronizar a edição: '+(error.message||error))}
-    };actions.insertBefore(edit,actions.firstChild)}
+   let heading=section.querySelector(':scope > h3');let toggle=section.querySelector(':scope > .v10-category-toggle');
+   if(!heading&&!toggle)return;
+   const title=(heading||toggle.querySelector('[data-v10-title]'))?.textContent?.trim()||'Categoria';
+   const rows=[...section.querySelectorAll('.item')].filter(row=>row.querySelector('[data-check]'));
+   const key=title+'#'+index;section.dataset.v10Key=key;
+   if(!(key in open))open[key]=rows.some(r=>!r.querySelector('[data-check]').checked);
+   let body=section.querySelector(':scope > .v10-category-body');
+   if(!body){body=document.createElement('div');body.className='v10-category-body';const children=[...section.children].filter(c=>c!==heading&&c!==toggle);children.forEach(c=>body.append(c));section.append(body)}
+   if(!toggle){toggle=document.createElement('button');toggle.type='button';toggle.className='v10-category-toggle';toggle.style.cssText='display:flex;width:100%;align-items:center;justify-content:space-between;text-align:left;background:transparent;border:0;padding:9px 2px;color:inherit;font-weight:750';heading.replaceWith(toggle)}
+   toggle.innerHTML=`<span data-v10-title>${esc(title)} <small class="note">${rows.length} itens · ${rows.filter(r=>!r.querySelector('[data-check]').checked).length} pendentes</small></span><span aria-hidden="true">${open[key]?'▾':'▸'}</span>`;
+   toggle.setAttribute('aria-expanded',String(!!open[key]));body.hidden=!open[key];toggle.onclick=()=>{open[key]=!open[key];localStorage.setItem(OPEN_KEY,JSON.stringify(open));body.hidden=!open[key];toggle.setAttribute('aria-expanded',String(!!open[key]));toggle.lastElementChild.textContent=open[key]?'▾':'▸'};
+   rows.forEach(row=>{
+    const check=row.querySelector('[data-check]'),item=data.items.find(i=>String(i.id)===String(check?.dataset.check));if(!item)return;
+    if(storeFilter&& !findPrices(item).some(p=>clean(p.store)===clean(storeFilter)))row.hidden=true;else row.hidden=false;
+    const nameNode=row.querySelector('.name');if(nameNode){let summary=nameNode.querySelector('[data-v10-price]');if(!summary){summary=document.createElement('small');summary.dataset.v10Price='1';nameNode.append(summary)}summary.textContent=itemSummary(item);summary.title='Comparação baseada apenas nos preços registrados no app';summary.style.color=store&&findPrices(item).length?'#087443':''}
+    const actions=row.querySelector('.item-actions');if(actions&&!actions.querySelector('[data-v10-edit]')){const edit=document.createElement('button');edit.type='button';edit.className='small ghost';edit.dataset.v10Edit='1';edit.textContent='✎';edit.title='Editar produto';edit.setAttribute('aria-label','Editar produto');edit.onclick=()=>{const next=prompt('Editar nome do produto:',item.name);if(next===null)return;const value=next.trim();if(!value)return toast('O nome não pode ficar vazio.');const previous=item.name;item.name=value;logActivity('Editou item',previous+' → '+value);save();toast('Item atualizado')};actions.insertBefore(edit,actions.firstChild)}
    });
   });
-  localStorage.setItem(KEY_OPEN,JSON.stringify(openState));
+  localStorage.setItem(OPEN_KEY,JSON.stringify(open));
  }
  const original=window.render;
- window.render=function(...args){const result=original.apply(this,args);addToolbar();decorateList();return result};
- addToolbar();decorateList();
+ window.render=function(...args){const result=original.apply(this,args);buildToolbar();decorate();return result};
+ buildToolbar();decorate();
 })();

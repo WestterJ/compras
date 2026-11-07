@@ -1,0 +1,15 @@
+MINHA LISTA DE COMPRAS — V10
+
+Este recurso agora está integrado ao index.html (não é apenas um arquivo complementar).
+
+Na tela Lista de compras:
+- Categorias recolhíveis; por padrão, abrem as que têm itens desmarcados. Você pode expandir/recolher todas ou abrir/fechar uma categoria. A preferência fica salva no navegador.
+- Ação “Marcar todos” para marcar todos os itens pendentes como comprados.
+- Edição de nome do item diretamente na lista.
+- Campo “Estou em” para selecionar/informar o supermercado atual.
+- Cada produto mostra o último preço e supermercado registrado, menor preço histórico e comparação com o supermercado selecionado (quando há dados).
+- Filtro por loja para mostrar itens com preço registrado naquela loja.
+
+A comparação usa o histórico cadastrado no app; não consulta preços atuais dos supermercados. O campo de supermercado e as categorias abertas/fechadas são preferências locais do navegador.
+
+Implantação: o index.html carrega compras-lista-v9.js depois de compras-supabase.js. Publique os três arquivos na mesma pasta e faça uma recarga forçada (Ctrl+F5 ou equivalente). Se o site estiver hospedado em outra pasta/URL, confirme que ambos os arquivos JS estão no mesmo diretório de index.html.
