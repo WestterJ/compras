@@ -1,0 +1,22 @@
+# Minha Lista de Compras — V4
+
+## O que mudou
+- Identidade visual alinhada ao Diário Nutricional V47.2 e ao Planejador de Estudos V10.37.
+- Cabeçalho azul institucional (#003a70) com detalhe amarelo (#ffc20e).
+- Menu lateral recolhível no computador.
+- Menu lateral deslizante em telas menores e barra inferior para navegação rápida no celular.
+- Tema claro/escuro com preferência salva no dispositivo.
+- Cartões, indicadores, campos e botões padronizados; melhor adaptação a telas pequenas.
+- Mantidas as funcionalidades da V3: lista por categorias, marcação de itens, registro e análise do histórico de preços, importação/exportação, atividade local e previsão inteligente por mediana.
+
+## Situação da integração
+Esta entrega é uma atualização visual/estrutural da V3. O aplicativo permanece em modo local neste arquivo. O login Google, sincronização familiar em tempo real e acesso às tabelas `shopping_*` do Supabase ainda não estão conectados. Não insira chaves privadas no HTML.
+
+## Como testar
+1. Extraia o ZIP.
+2. Abra `minha_lista_compras_v4.html` no navegador.
+3. Teste a lista, registro de preços e previsão.
+4. Reduza a largura do navegador para testar o menu móvel e a barra inferior.
+5. Use o botão ◐ para alternar o tema.
+
+Os dados locais da V3 usam a chave `compras_v2` no armazenamento do navegador. Para preservar dados existentes, teste no mesmo navegador/perfil onde a V3 foi utilizada.
