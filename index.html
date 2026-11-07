@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#003a70">
-<title>Minha Lista de Compras | V6</title>
+<title>Minha Lista de Compras | V7</title>
 <style>
 :root{--bg:#fff9c9;--paper:#fffdf0;--ink:#514d38;--muted:#928b68;--line:#e8dfaa;--accent:#c5a94c;--green:#66835c;--red:#b85b4b;--shadow:0 8px 24px #766b3215}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
@@ -26,7 +26,7 @@ label{font-size:13px;color:var(--muted);display:block;margin:8px 0 4px}.formgrid
 .modalback{display:none;position:fixed;inset:0;background:#28251577;z-index:5;align-items:center;justify-content:center;padding:14px}.modal{background:var(--paper);border-radius:20px;padding:18px;max-width:470px;width:100%;max-height:90vh;overflow:auto}
 #toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#4e4a35;color:white;padding:10px 15px;border-radius:20px;display:none;z-index:10}
 @media(max-width:760px){main{grid-template-columns:1fr}header{padding-top:18px}.panel{padding:14px}}
-.item small{line-height:1.4}.note{overflow-wrap:anywhere}#syncStatus{padding:10px;background:#fff9d9;border-radius:12px}\n
+.item small{line-height:1.4}.note{overflow-wrap:anywhere}#syncStatus{padding:10px;background:#fff9d9;border-radius:12px}
 /* V4 — identidade visual unificada com Diário Nutricional e Planejador de Estudos */
 :root{--bg:#f1f4f8;--paper:#fff;--ink:#1b2733;--muted:#64748b;--line:#e2e8f0;--accent:#0a5cad;--accent-dark:#003a70;--gold:#ffc20e;--green:#16845b;--red:#c2413b;--shadow:0 2px 10px rgba(15,23,42,.06);--sidebar:228px}
 body{background:var(--bg);color:var(--ink);font:14px/1.5 'Segoe UI',Roboto,Arial,sans-serif;overflow-x:clip;padding:0 0 0}
@@ -96,7 +96,7 @@ html.dark .auth-card,html.dark .receipt-drop{background:#14263b;border-color:#31
 </style></head>
 <body>
 <header class="app-header">
- <div class="header-left"><button id="mobileMenu" class="mobile-menu-btn" aria-label="Abrir menu">☰</button><div class="brand-mark">🛒</div><div class="brand-copy"><h1>Minha Lista de Compras</h1><small>Versão V6 · Compras em família</small></div></div>
+ <div class="header-left"><button id="mobileMenu" class="mobile-menu-btn" aria-label="Abrir menu">☰</button><div class="brand-mark">🛒</div><div class="brand-copy"><h1>Minha Lista de Compras</h1><small>Versão V7 · Compras em família</small></div></div>
  <div class="header-actions"><span class="cloud-pill" id="headerSync">● <span>Modo local</span></span><button id="themeToggle" class="theme-toggle" aria-label="Alternar tema" title="Alternar tema">◐</button></div>
 </header>
 <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
@@ -135,10 +135,12 @@ html.dark .auth-card,html.dark .receipt-drop{background:#14263b;border-color:#31
   <div id="forecastSummary" class="statgrid" style="margin:10px 0"></div>
   <div id="forecast" class="empty">Registre compras do mesmo produto em datas diferentes para começar a previsão.</div>
   <div class="note" style="margin-top:8px">Critério: intervalo mediano entre compras, tempo desde a última compra e janela selecionada. Com apenas um registro, não há base suficiente para prever.</div>
- </div>\n <div class="panel" id="panel-activity"><h2>Atividade recente</h2><div id="activity" class="empty">As alterações feitas neste aparelho aparecem aqui.</div></div>
+ </div>
+ <div class="panel" id="panel-activity"><h2>Atividade recente</h2><div id="activity" class="empty">As alterações feitas neste aparelho aparecem aqui.</div></div>
  <div class="panel">
   <h2>Importar / exportar lista</h2>
-  <div class="panel" style="box-shadow:none;background:#f8fbff;margin:0 0 14px;padding:14px">
+  <p class="note" id="aiDenied">As funções de IA aparecem aqui para quem tem permissão e está conectado.</p>
+  <div class="panel" id="aiBox" hidden style="box-shadow:none;background:transparent;margin:0 0 14px;padding:14px">
    <h2 style="margin-bottom:6px">Analisar fotos de notas fiscais</h2>
    <p class="note">Selecione uma ou mais fotos das compras. A ideia é extrair produtos, quantidades, preços, mercado e data, revisar os dados e só então inserir no histórico. A foto não será arquivada no aplicativo.</p>
    <div class="receipt-drop">
@@ -147,13 +149,12 @@ html.dark .auth-card,html.dark .receipt-drop{background:#14263b;border-color:#31
     <input type="file" id="receiptPhotos" accept="image/*" multiple>
     <div id="receiptPhotoPreview" class="note"></div>
    </div>
-   <button type="button" class="small primary" id="analyzeReceiptPhotos" disabled style="margin-top:10px">Analisar notas com IA</button>
-   <div id="receiptAiStatus" class="note" style="margin-top:8px">A análise por IA depende de uma função segura no Supabase (Edge Function) com a chave do provedor configurada no servidor. A imagem não deve ser salva no Storage.</div>
+   <button type="button" class="small primary" id="analyzeReceiptPhotos" disabled style="margin-top:10px">Analisar notas com IA</button> <button type="button" class="small ghost" id="cancelReceiptAI" hidden style="margin-top:10px">Cancelar</button>
+   <div id="receiptAiStatus" class="note" style="margin-top:8px"></div>
    <div id="receiptExtracted"></div>
   </div>
   <div class="row"><button id="copyList">Copiar lista</button><button id="exportData">Exportar backup</button><label class="small" style="margin:0"><input type="file" id="importData" accept=".json" hidden><button type="button" class="small" onclick="document.getElementById('importData').click()">Importar backup</button></label></div>
-  <div class="row" style="margin-top:8px"><button class="small" id="receiptImportBtn">Importar CSV de compras</button><input id="receiptFile" type="file" accept=".csv,text/csv" hidden></div>
-  <p class="note">Os dados ficam salvos neste navegador. Para transferir para outro aparelho, exporte o backup e importe nele.</p>
+  <p class="note">Sem login, os dados ficam só neste navegador (use o backup para transferir). Conectado, a lista sincroniza com a família.</p>
  </div>
 </section>
 <aside>
@@ -161,30 +162,25 @@ html.dark .auth-card,html.dark .receipt-drop{background:#14263b;border-color:#31
   <h2>Família e sincronização</h2>
   <div class="auth-card">
    <b>Conta familiar</b>
-   <p class="note">Configure o projeto Supabase e entre com sua conta Google. Use somente a chave pública anon/publishable — nunca a service_role.</p>
-   <div class="auth-grid">
-    <input id="supabaseUrl" type="url" placeholder="URL do projeto Supabase (https://....supabase.co)">
-    <input id="supabaseAnon" type="password" placeholder="Chave pública anon / publishable">
-   </div>
-   <div class="auth-actions">
-    <button class="small" type="button" id="saveSupabaseConfig">Conectar projeto</button>
-    <button class="small primary" type="button" id="googleLogin" disabled>Entrar com Google</button>
-    <button class="small ghost" type="button" id="googleLogout" hidden>Sair</button>
-   </div>
-   <div class="note" id="authStatus" style="margin-top:8px">Autenticação ainda não configurada.</div>
+   <div id="authForm"><p class="note">Entre para sincronizar a lista com a família. Sem login, o app continua em modo local.</p>
+    <div class="auth-grid"><input id="authEmail" type="email" placeholder="E-mail" autocomplete="username"><input id="authPass" type="password" placeholder="Senha (mínimo 6 caracteres)" autocomplete="current-password"></div>
+    <div class="auth-actions"><button class="small primary" type="button" id="btnLogin">Entrar</button><button class="small" type="button" id="btnSignup">Criar conta</button><button class="small" type="button" id="googleLogin">Entrar com Google</button></div></div>
+   <div id="authLogged" hidden><p class="note">Conectado como <b id="authWho"></b></p>
+    <div class="auth-actions"><button class="small" type="button" id="syncNow">Sincronizar agora</button><button class="small ghost" type="button" id="googleLogout">Sair</button></div>
+    <label>Lista</label><select id="listSelect" style="width:100%"></select><div id="familyBox"></div></div>
+   <div class="note" id="authStatus" style="margin-top:8px"></div>
   </div>
   <div class="note" id="syncStatus">Modo local: ainda não conectado ao Supabase. Cada aparelho mantém seus próprios dados.</div>
   <label>Seu nome neste aparelho</label><input id="actorName" placeholder="Seu nome" style="width:100%">
   <label>Nome da lista</label><input id="listName" value="Compras da família" style="width:100%">
   <button class="small" id="saveProfile" style="margin-top:8px">Salvar identificação</button>
-  <p class="note">A sincronização entre contas Google será ativada após configurar o Supabase.</p>
- </div>
+   </div>
  <div class="panel">
   <h2>Resumo da lista</h2><div class="statgrid">
    <div class="stat"><b id="totalItems">0</b><span>Produtos cadastrados</span></div>
    <div class="stat"><b id="checkedItems">0</b><span>Marcados como comprados</span></div>
    <div class="stat"><b id="trackedItems">0</b><span>Com histórico de preço</span></div>
-   <div class="stat"><b id="lastSpend">R$ 0,00</b><span>Última compra registrada</span></div>
+   <div class="stat"><b id="lastSpend">R$ 0,00</b><span>Total da última data de compra</span></div>
   </div>
  </div>
  <div class="panel" id="panel-prices">
@@ -241,6 +237,7 @@ if(!data){data={items:[],prices:[],activity:[],profile:{actor:"",listName:"Compr
  {name:"Granola tradicional",value:17.99,date:"2026-10-30",store:"Nota enviada"}
  ];}
 function uid(){return Math.random().toString(36).slice(2,10)}
+function ymd(){const d=new Date();return new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10)}
 function save(){data.activity=data.activity||[];localStorage.setItem("compras_v2",JSON.stringify(data));render()}
 function actor(){return (data.profile&&data.profile.actor)||"Pessoa deste aparelho"}
 function logActivity(action,item){data.activity=data.activity||[];data.activity.unshift({action,item:item||"",actor:actor(),at:new Date().toISOString()});data.activity=data.activity.slice(0,100)}
@@ -260,7 +257,7 @@ function daysBetween(a,b){
 }
 function getReplenishmentSuggestions(){
  const today=new Date();today.setHours(12,0,0,0);
- const todayISO=today.toISOString().slice(0,10);
+ const todayISO=ymd();
  const windowDays=Number(document.getElementById("forecastWindow")?.value||7);
  const groups=new Map();
  (data.prices||[]).forEach(p=>{
@@ -346,16 +343,12 @@ function render(){
  document.getElementById("progress").textContent=`${checked} de ${data.items.length} produtos marcados`;
  document.getElementById("totalItems").textContent=data.items.length;document.getElementById("checkedItems").textContent=checked;
  document.getElementById("trackedItems").textContent=new Set(data.prices.map(p=>norm(p.name))).size;
- let latest=[...data.prices].sort((a,b)=>b.date.localeCompare(a.date))[0];document.getElementById("lastSpend").textContent=latest?money(latest.value):"R$ 0,00";
+ let latest=[...data.prices].sort((a,b)=>b.date.localeCompare(a.date))[0];document.getElementById("lastSpend").textContent=latest?money(data.prices.filter(p=>p.date===latest.date).reduce((t,p)=>t+p.value*(p.qty||1),0)):"R$ 0,00";
  document.getElementById("products").innerHTML=data.items.map(i=>`<option value="${esc(i.name)}">`).join("");
  let hist=[...data.prices].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,8);
  document.getElementById("history").innerHTML=hist.length?`<table><tr><th>Produto</th><th>Data</th><th>Preço</th></tr>${hist.map(p=>`<tr><td>${esc(p.name)}</td><td>${dateBR(p.date)}</td><td>${money(p.value)}</td></tr>`).join("")}</table>`:'<div class="empty">Nenhum preço registrado.</div>';
  let activity=data.activity||[];
  document.getElementById("activity").innerHTML=activity.length?activity.slice(0,8).map(a=>`<div class="item"><div class="name"><b>${esc(a.actor)}</b> ${esc(a.action.toLowerCase())}<small>${esc(a.item)} · ${new Date(a.at).toLocaleString("pt-BR")}</small></div></div>`).join(""):'<div class="empty">Nenhuma atividade registrada.</div>';
- let forecasts=[];
- data.items.forEach(it=>{let arr=(data.prices||[]).filter(p=>norm(p.name)===norm(it.name)).sort((a,b)=>a.date.localeCompare(b.date));if(arr.length>=2){let gaps=[];for(let j=1;j<arr.length;j++)gaps.push((new Date(arr[j].date)-new Date(arr[j-1].date))/86400000);let avg=gaps.reduce((a,b)=>a+b,0)/gaps.length;let due=new Date(arr[arr.length-1].date);due.setDate(due.getDate()+Math.round(avg));forecasts.push({name:it.name,due,avg});}});
- forecasts.sort((a,b)=>a.due-b.due);
- document.getElementById("forecast").innerHTML=forecasts.length?forecasts.slice(0,10).map(f=>`<div class="item"><div class="name">${esc(f.name)}<small>Intervalo médio: ${Math.round(f.avg)} dias · previsão: ${f.due.toLocaleDateString("pt-BR")}</small></div></div>`).join(""):'<div class="empty">Ainda não há histórico suficiente. Registre pelo menos duas compras do mesmo produto em datas diferentes.</div>';
  document.getElementById("actorName").value=(data.profile&&data.profile.actor)||"";
  document.getElementById("listName").value=(data.profile&&data.profile.listName)||"Compras da família";
  renderReplenishment();
@@ -369,10 +362,10 @@ document.getElementById("addOpen").onclick=()=>document.getElementById("modal").
 document.getElementById("closeModal").onclick=()=>document.getElementById("modal").style.display="none";
 document.getElementById("newCat").innerHTML=categories.map(c=>`<option>${c}</option>`).join("");
 document.getElementById("addForm").onsubmit=e=>{e.preventDefault();let name=document.getElementById("newName").value.trim(),cat=document.getElementById("newCat").value;if(!data.items.some(i=>norm(i.name)===norm(name)))data.items.push({id:uid(),name,cat,checked:false});logActivity("Adicionou",name);save();e.target.reset();document.getElementById("modal").style.display="none";toast("Produto adicionado")};
-document.getElementById("priceDate").value=new Date().toISOString().slice(0,10);
+document.getElementById("priceDate").value=ymd();
 document.getElementById("priceForm").onsubmit=e=>{e.preventDefault();let name=document.getElementById("priceProduct").value.trim(),value=Number(document.getElementById("priceValue").value),date=document.getElementById("priceDate").value,store=document.getElementById("priceStore").value.trim();if(!name||!value||!date)return;
  if(!data.items.some(i=>norm(i.name)===norm(name)))data.items.push({id:uid(),name,cat:"Outros",checked:true});
- data.prices.push({name,value,date,store});logActivity("Registrou compra no histórico de consumo",name+" · "+money(value));save();e.target.reset();document.getElementById("priceDate").value=new Date().toISOString().slice(0,10);toast("Preço registrado")};
+ data.prices.push({name,value,date,store});logActivity("Registrou compra no histórico de consumo",name+" · "+money(value));save();e.target.reset();document.getElementById("priceDate").value=ymd();toast("Preço registrado")};
 document.getElementById("analyze").onclick=()=>{let name=document.getElementById("analyzeSearch").value.trim();let arr=data.prices.filter(p=>norm(p.name)===norm(name)).sort((a,b)=>a.date.localeCompare(b.date));let box=document.getElementById("analysis");if(!arr.length){box.textContent="Ainda não há histórico suficiente para esse produto. Registre uma compra ou importe mais notas.";return}
  let last=arr[arr.length-1],min=Math.min(...arr.map(x=>x.value)),max=Math.max(...arr.map(x=>x.value)),avg=arr.reduce((s,x)=>s+x.value,0)/arr.length,prev=arr.length>1?arr[arr.length-2]:null;
  let trend=prev?((last.value-prev.value)/prev.value*100):null;
@@ -454,63 +447,12 @@ render();
  document.getElementById('bottomAdd')?.addEventListener('click',()=>document.getElementById('addOpen')?.click());
  const oldSaveProfile=document.getElementById('saveProfile');
  const sync=document.getElementById('syncStatus');
- if(sync){const pill=document.querySelector('#headerSync span');const update=()=>{if(pill)pill.textContent=sync.textContent.includes('Modo local')?'Modo local':'Status';};update();new MutationObserver(update).observe(sync,{childList:true,subtree:true,characterData:true});}
+
 })();
 </script>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>
-(()=>{
- const $=id=>document.getElementById(id);
- let sb=null;
- const saved=JSON.parse(localStorage.getItem('compras_supabase_config')||'{}');
- if($('supabaseUrl'))$('supabaseUrl').value=saved.url||'';
- if($('supabaseAnon'))$('supabaseAnon').value=saved.key||'';
- const status=(msg)=>{if($('authStatus'))$('authStatus').textContent=msg;if($('syncStatus'))$('syncStatus').textContent=msg;};
- async function init(){
-   const url=$('supabaseUrl')?.value.trim(),key=$('supabaseAnon')?.value.trim();
-   if(!url||!key){status('Informe a URL e a chave pública do projeto Supabase.');return false;}
-   if(!/^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/i.test(url)){status('URL do Supabase inválida. Use a URL do projeto.');return false;}
-   if(!window.supabase?.createClient){status('Não foi possível carregar a biblioteca Supabase. Verifique a conexão.');return false;}
-   localStorage.setItem('compras_supabase_config',JSON.stringify({url,key}));
-   sb=window.supabase.createClient(url.replace(/\/$/,''),key);
-   $('googleLogin').disabled=false;
-   const {data:{session},error}=await sb.auth.getSession();
-   if(error){status('Erro ao consultar sessão: '+error.message);return false;}
-   if(session){status('Conectado como '+(session.user.email||'usuário autenticado')+'. Login ativo; sincronização dos dados será habilitada na próxima etapa.');$('googleLogout').hidden=false;$('googleLogin').hidden=true;}
-   else {status('Projeto conectado. Clique em “Entrar com Google” para autenticar.');}
-   sb.auth.onAuthStateChange((_event,session)=>{
-     if(session){status('Autenticado: '+(session.user.email||'Google')+'. Os dados ainda estão em modo local até ativarmos a sincronização.');$('googleLogout').hidden=false;$('googleLogin').hidden=true;}
-     else {$('googleLogout').hidden=true;$('googleLogin').hidden=false;status('Projeto conectado, sem usuário autenticado.');}
-   });
-   return true;
- }
- $('saveSupabaseConfig')?.addEventListener('click',init);
- $('googleLogin')?.addEventListener('click',async()=>{
-   if(!sb && !(await init()))return;
-   const {error}=await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.href}});
-   if(error)status('Falha no login Google: '+error.message);
- });
- $('googleLogout')?.addEventListener('click',async()=>{if(sb){const {error}=await sb.auth.signOut();status(error?'Erro ao sair: '+error.message:'Sessão encerrada.');}});
- if(saved.url&&saved.key)init();
-
- // Seleção temporária de fotos: mostra prévias locais; não envia nem persiste imagem.
- $('receiptPhotos')?.addEventListener('change',e=>{
-   const files=[...(e.target.files||[])],box=$('receiptPhotoPreview');
-   box.innerHTML='';
-   files.forEach(f=>{
-     if(!f.type.startsWith('image/'))return;
-     const img=document.createElement('img');img.className='receipt-preview';img.alt='Prévia temporária da nota fiscal';img.src=URL.createObjectURL(f);box.append(img);
-   });
-   $('analyzeReceiptPhotos').disabled=!files.length;
-   $('receiptAiStatus').textContent=files.length+' imagem(ns) selecionada(s). Nenhuma foto foi enviada ou armazenada. A análise será habilitada após configurar a função segura de IA no Supabase.';
- });
- $('analyzeReceiptPhotos')?.addEventListener('click',()=>{
-   $('receiptAiStatus').textContent='A interface de importação está preparada, mas a análise automática ainda depende da Edge Function de IA. As fotos permanecem somente no navegador e não são salvas.';
- });
-})();
-</script>
-
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4"></script>
+<script src="compras-supabase.js"></script>
 
 <script>
 /* V6: atualização explícita dos painéis derivados após cada render */

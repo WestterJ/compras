@@ -1,0 +1,9 @@
+MINHA LISTA DE COMPRAS V7
+- Novo arquivo compras-supabase.js (subir junto com o index.html, na mesma pasta).
+- Login por e-mail/senha e Google, com URL e chave pública do projeto "Bases" já no código (nada digitado na tela).
+- Sincronização com shopping_lists/categories/products/items/purchases/purchase_items/activity; convites por e-mail (shopping_members) com aceite automático no login.
+- IA de notas fiscais: edge function dynamic-service, modo "nota"; só aparece para quem tem permissão (mesma regra do app de estudos: study_my_access) e registra o uso em study_ai_usage (modo compras_nota).
+- Sem login o app continua local. Primeiro login sem lista: cria a lista e envia os dados locais; a cópia local fica em compras_backup_pre_cloud.
+- Correções: CSS/HTML com "\n" solto que anulava o tema V4; data "hoje" em UTC (virava amanhã após 21h); botão de CSV sem função (removido); código morto da previsão; painel de IA ilegível no modo escuro; "Última compra" mostrava um preço, agora soma a data.
+- Edge function (recomendado): na constante MODOS adicionar
+  nota: { texto: 4000, tokens: 6000, temp: 0.1, imagem: true },
