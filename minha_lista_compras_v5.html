@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#003a70">
+<title>Minha Lista de Compras | V5</title>
+<style>
+:root{--bg:#fff9c9;--paper:#fffdf0;--ink:#514d38;--muted:#928b68;--line:#e8dfaa;--accent:#c5a94c;--green:#66835c;--red:#b85b4b;--shadow:0 8px 24px #766b3215}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
+header{padding:24px 18px 16px;max-width:1050px;margin:auto}h1{font-size:26px;margin:0 0 4px}header p{margin:0;color:var(--muted);font-size:14px}
+main{max-width:1050px;margin:auto;padding:0 14px 40px;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(290px,.8fr);gap:16px}
+.panel{background:var(--paper);border:1px solid var(--line);border-radius:20px;padding:16px;box-shadow:var(--shadow);margin-bottom:15px}
+h2{font-size:18px;margin:0 0 12px}.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+input,select,button{font:inherit;border-radius:12px;border:1px solid var(--line);padding:11px;background:#fffef8;color:var(--ink)}
+input:focus,select:focus{outline:2px solid #d8c36e}button{cursor:pointer;background:#f5e9a3;font-weight:650}button.primary{background:#d7c36d;border-color:#c5ae50}button.small{padding:7px 10px;font-size:13px}button.ghost{background:transparent}
+.row{display:flex;gap:8px;align-items:center}.row>*{min-width:0}.row input{flex:1}.filters{display:flex;gap:7px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);border-radius:30px;padding:6px 10px;background:#fffdf4;color:var(--muted);font-size:13px;cursor:pointer}.chip.active{background:#e9dda0;color:var(--ink);font-weight:700}
+.category{margin-top:18px}.category h3{font-size:15px;margin:0 0 6px;color:#84794e}.item{display:flex;align-items:center;gap:10px;padding:10px 2px;border-bottom:1px solid #eee8c9}.item:last-child{border:0}.item input[type=checkbox]{width:19px;height:19px;accent-color:#a99a55}.item .name{flex:1}.item.done .name{text-decoration:line-through;color:#aaa487}.item small{display:block;color:var(--muted);font-size:12px}.price-tag{font-size:12px;color:var(--muted);white-space:nowrap}.item-actions{display:flex;gap:4px}
+.statgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}.stat{background:#fff9d9;border-radius:14px;padding:12px}.stat b{display:block;font-size:21px}.stat span{font-size:12px;color:var(--muted)}
+table{width:100%;border-collapse:collapse;font-size:13px}td,th{text-align:left;padding:9px 5px;border-bottom:1px solid #eee8c9}th{color:var(--muted);font-weight:600}
+.good{color:var(--green);font-weight:700}.bad{color:var(--red);font-weight:700}.neutral{color:var(--muted)}
+label{font-size:13px;color:var(--muted);display:block;margin:8px 0 4px}.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.formgrid .wide{grid-column:1/-1}
+.empty{color:var(--muted);font-size:14px;padding:12px 0}.note{font-size:12px;color:var(--muted);line-height:1.5}
+.modalback{display:none;position:fixed;inset:0;background:#28251577;z-index:5;align-items:center;justify-content:center;padding:14px}.modal{background:var(--paper);border-radius:20px;padding:18px;max-width:470px;width:100%;max-height:90vh;overflow:auto}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#4e4a35;color:white;padding:10px 15px;border-radius:20px;display:none;z-index:10}
+@media(max-width:760px){main{grid-template-columns:1fr}header{padding-top:18px}.panel{padding:14px}}
+.item small{line-height:1.4}.note{overflow-wrap:anywhere}#syncStatus{padding:10px;background:#fff9d9;border-radius:12px}\n
+/* V4 — identidade visual unificada com Diário Nutricional e Planejador de Estudos */
+:root{--bg:#f1f4f8;--paper:#fff;--ink:#1b2733;--muted:#64748b;--line:#e2e8f0;--accent:#0a5cad;--accent-dark:#003a70;--gold:#ffc20e;--green:#16845b;--red:#c2413b;--shadow:0 2px 10px rgba(15,23,42,.06);--sidebar:228px}
+body{background:var(--bg);color:var(--ink);font:14px/1.5 'Segoe UI',Roboto,Arial,sans-serif;overflow-x:clip;padding:0 0 0}
+.app-header{height:66px;position:sticky;top:0;z-index:50;background:#003a70;color:#fff;border-bottom:4px solid #ffc20e;display:flex;align-items:center;justify-content:space-between;padding:8px 20px;box-shadow:0 2px 8px #0f172a22;max-width:none;margin:0}
+.header-left,.header-actions{display:flex;align-items:center;gap:12px;min-width:0}.brand-mark{width:42px;height:42px;border-radius:12px;background:#ffffff1c;display:grid;place-items:center;font-size:24px}.brand-copy h1{font-size:18px;line-height:1.2;margin:0;color:#fff}.brand-copy small{font-size:11px;color:#dbeafe}.cloud-pill{border:1px solid #fbbf24;background:#a16207;color:white;padding:6px 11px;border-radius:30px;font-size:11px;font-weight:700}.theme-toggle,.mobile-menu-btn{width:40px;height:40px;border:0;border-radius:10px;background:#ffffff20;color:white;font-size:20px;padding:0}.mobile-menu-btn{display:none}
+.app-shell{display:flex;min-height:calc(100vh - 66px);align-items:stretch}.app-sidebar{position:sticky;top:66px;align-self:flex-start;height:calc(100vh - 66px);width:var(--sidebar);flex:0 0 var(--sidebar);background:#fff;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;gap:8px;padding:14px 10px;overflow-y:auto;z-index:35;transition:width .2s,flex-basis .2s,transform .2s}.sidebar-primary{background:#ffc20e;color:#172033;border:0;border-radius:10px;text-align:left;font-size:13px;font-weight:750;padding:12px;display:flex;gap:10px;align-items:center}.sidebar-divider{height:1px;background:#e2e8f0;margin:4px}.sidebar-nav{display:flex;flex-direction:column;gap:4px;flex:1}.nav-btn{width:100%;display:flex;align-items:center;gap:12px;text-align:left;padding:11px 10px;border:0;background:transparent;color:#334155;border-radius:10px;font-size:13px;font-weight:650}.nav-btn:hover{background:#f1f5f9}.nav-btn.active{background:#0a5cad;color:#fff;box-shadow:0 2px 5px #0a5cad33}.nav-ico{width:25px;text-align:center;font-size:17px}.sidebar-foot{border-top:1px solid #e2e8f0;padding-top:10px}.sidebar-foot-note{font-size:11px;color:#64748b;padding:6px 8px 12px}.sidebar-foot-note b{color:#334155}.collapse-btn{border:0;background:transparent;color:#64748b;font-size:12px;width:100%;text-align:left;padding:8px}.sidebar-backdrop{display:none}
+main{width:100%;max-width:1440px;margin:0 auto;padding:22px 24px 48px;display:grid;grid-template-columns:minmax(0,1.35fr) minmax(300px,.85fr);gap:18px;align-items:start}.panel{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:var(--shadow);margin-bottom:16px}.panel h2{font-size:16px;color:#173b61;font-weight:750;margin:0 0 13px}.panel p{line-height:1.55}.row{gap:9px}.toolbar{margin:12px 0}.chip{background:#f8fafc;border-color:#cbd5e1;color:#475569}.chip.active{background:#e0efff;border-color:#93c5fd;color:#07539a}.stat{background:#f1f7fd;border:1px solid #e1edf8;border-radius:12px;padding:13px}.stat b{color:#0a5cad;font-size:22px}.stat span{color:#64748b}.item{padding:12px 4px;border-color:#edf1f5}.item input[type=checkbox]{accent-color:#0a5cad;width:20px;height:20px}.category h3{color:#0a5cad;font-size:14px;font-weight:750}.price-tag{color:#64748b}.good{color:#16845b}.bad{color:#c2413b}input,select,button{border-radius:9px;border-color:#cbd5e1}input,select{background:#fff;color:#1b2733}input:focus,select:focus{outline:2px solid #93c5fd;border-color:#0a5cad}button{background:#e8f2fc;color:#064b85;font-weight:700}button.primary{background:#0a5cad;color:#fff;border-color:#0a5cad}button.ghost{background:transparent;color:#475569}.empty{color:#64748b}#syncStatus{background:#eff6ff;border:1px solid #dbeafe;color:#1e40af;border-radius:10px}.modal{background:#fff;border:1px solid #e2e8f0;box-shadow:0 20px 50px #0f172a33}#toast{background:#003a70;border:1px solid #ffc20e}
+.bottom-bar{display:none}
+body.sidebar-collapsed .app-sidebar{width:64px;flex-basis:64px}body.sidebar-collapsed .nav-label,body.sidebar-collapsed .sidebar-primary span,body.sidebar-collapsed .sidebar-foot-note,body.sidebar-collapsed .collapse-btn span{display:none}body.sidebar-collapsed .nav-btn{justify-content:center;padding:11px 0}body.sidebar-collapsed .sidebar-primary{justify-content:center}
+html.dark{color-scheme:dark;--bg:#0b1220;--paper:#1e293b;--ink:#e2e8f0;--muted:#94a3b8;--line:#334155;--shadow:0 2px 12px #0003}html.dark body{background:var(--bg);color:var(--ink)}html.dark .app-sidebar,html.dark .panel,html.dark .modal{background:#1e293b;border-color:#334155}html.dark .nav-btn{color:#cbd5e1}html.dark .nav-btn:hover{background:#263449}html.dark .nav-btn.active{background:#0a5cad;color:#fff}html.dark .sidebar-foot{border-color:#334155}html.dark .sidebar-foot-note,html.dark .sidebar-foot-note b{color:#cbd5e1}html.dark .panel h2,html.dark .category h3{color:#93c5fd}html.dark input,html.dark select{background:#0f172a;color:#f1f5f9;border-color:#475569}html.dark .stat{background:#172b42;border-color:#29435e}html.dark .stat b{color:#93c5fd}html.dark .stat span,html.dark .note,html.dark label{color:#aebed0}html.dark .chip{background:#263449;color:#cbd5e1;border-color:#475569}html.dark .chip.active{background:#12385c;color:#bfdbfe;border-color:#1d4f7c}html.dark #syncStatus{background:#0c2a46;color:#bfdbfe;border-color:#1d4f7c}html.dark td,html.dark th,html.dark .item{border-color:#334155}html.dark .item.done .name{color:#64748b}html.dark .empty{color:#94a3b8}
+@media(max-width:900px){.mobile-menu-btn{display:block}.app-sidebar{position:fixed;left:0;top:0;height:100dvh;width:270px;flex-basis:270px;transform:translateX(-105%);box-shadow:4px 0 24px #0f172a40;z-index:70;padding-top:18px}.sidebar-open .app-sidebar{transform:translateX(0)}.sidebar-open .sidebar-backdrop{display:block;position:fixed;inset:0;background:#0f172a77;z-index:65}.app-shell{min-height:calc(100vh - 66px)}main{grid-template-columns:1fr;padding:14px 12px 28px;gap:0}.bottom-bar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:60;background:#003a70;border-top:3px solid #ffc20e;padding:5px 5px calc(5px + env(safe-area-inset-bottom));gap:3px}.bb-item{flex:1;min-width:0;min-height:48px;border:0;background:transparent;color:#e2e8f0;border-radius:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:10px;padding:3px}.bb-item span{font-size:18px;line-height:1.2}.bb-item.active{background:#ffffff22;color:#fff}.bb-add{background:#ffc20e;color:#172033;flex:0 0 54px;margin-top:-12px;min-height:54px;box-shadow:0 3px 10px #0004}.bb-add span{font-size:25px}body{padding-bottom:calc(66px + env(safe-area-inset-bottom))}.panel{padding:15px;margin-bottom:12px}}
+@media(max-width:520px){.app-header{padding:7px 10px;height:62px}.brand-mark{width:36px;height:36px;font-size:21px}.brand-copy h1{font-size:15px}.brand-copy small{font-size:10px}.cloud-pill{padding:5px 7px;font-size:10px}.theme-toggle,.mobile-menu-btn{width:36px;height:36px}main{padding:10px 9px 20px}.statgrid{gap:7px}.stat{padding:10px}.stat b{font-size:19px}.formgrid{grid-template-columns:1fr 1fr}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+
+
+/* V5 — layout em módulos independentes, sem rolagem entre telas */
+.app-shell{width:100%;min-width:0}
+.app-shell>main{display:block;flex:1 1 0;width:0;min-width:0;max-width:none;margin:0;padding:22px clamp(14px,2.2vw,32px) 48px;overflow:hidden}
+.app-page{display:none;max-width:1120px;margin:0 auto;min-width:0;animation:pageIn .16s ease-out}
+.app-page.active{display:block}
+.app-page .panel{width:100%;min-width:0}
+.app-page .page-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,.72fr);gap:16px;align-items:start}
+.app-page .page-grid>*{min-width:0}
+.app-page .page-title{font-size:21px;color:#123b63;margin:2px 0 14px;font-weight:800}
+.app-page .page-subtitle{color:var(--muted);margin:-7px 0 16px;font-size:13px}
+.price-insight{display:flex;gap:8px;flex-wrap:wrap;margin-top:5px}
+.price-insight span{font-size:11px;color:#475569;background:#f1f5f9;border-radius:20px;padding:3px 8px}
+.price-insight .best{color:#087443;background:#e8f7ef}
+.auth-card{border:1px solid #dbeafe;background:#f5faff;border-radius:14px;padding:14px;margin:12px 0}
+.auth-grid{display:grid;grid-template-columns:1fr;gap:8px}
+.auth-grid input{width:100%}
+.auth-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.receipt-drop{border:2px dashed #93b7d8;border-radius:16px;padding:24px;text-align:center;background:#f5faff}
+.receipt-drop input{max-width:100%;background:transparent;border:0}
+.receipt-preview{max-width:100%;max-height:260px;object-fit:contain;border-radius:10px;margin:12px auto;display:block}
+@keyframes pageIn{from{opacity:.6;transform:translateY(4px)}to{opacity:1;transform:none}}
+html.dark .app-page .page-title{color:#bfdbfe}
+html.dark .price-insight span{background:#263449;color:#dbeafe}
+html.dark .price-insight .best{background:#123b2c;color:#a7f3d0}
+html.dark .auth-card,html.dark .receipt-drop{background:#14263b;border-color:#315577;color:#dbeafe}
+@media(min-width:901px){
+ .app-shell{align-items:stretch}
+ .app-sidebar{flex:0 0 var(--sidebar);width:var(--sidebar)}
+ body.sidebar-collapsed .app-sidebar{flex-basis:64px;width:64px}
+}
+@media(max-width:900px){
+ .app-shell>main{width:100%;padding:14px 12px 28px;overflow:visible}
+ .app-page .page-grid{grid-template-columns:1fr}
+}
+@media(max-width:520px){
+ .app-page .page-title{font-size:19px}
+ .formgrid{grid-template-columns:1fr}
+ .formgrid .wide{grid-column:auto}
+}
+
+</style></head>
+<body>
+<header class="app-header">
+ <div class="header-left"><button id="mobileMenu" class="mobile-menu-btn" aria-label="Abrir menu">☰</button><div class="brand-mark">🛒</div><div class="brand-copy"><h1>Minha Lista de Compras</h1><small>Versão V5 · Compras em família</small></div></div>
+ <div class="header-actions"><span class="cloud-pill" id="headerSync">● <span>Modo local</span></span><button id="themeToggle" class="theme-toggle" aria-label="Alternar tema" title="Alternar tema">◐</button></div>
+</header>
+<div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+<div class="app-shell">
+ <aside class="app-sidebar" id="appSidebar" aria-label="Menu principal">
+  <button class="sidebar-primary" data-target="panel-list">＋ <span>Nova compra / produto</span></button>
+  <div class="sidebar-divider"></div>
+  <nav class="sidebar-nav">
+   <button class="nav-btn active" data-target="panel-list"><span class="nav-ico">🛒</span><span class="nav-label">Lista de compras</span></button>
+   <button class="nav-btn" data-target="panel-forecast"><span class="nav-ico">🔮</span><span class="nav-label">Previsão inteligente</span></button>
+   <button class="nav-btn" data-target="panel-prices"><span class="nav-ico">💲</span><span class="nav-label">Preços e histórico</span></button>
+   <button class="nav-btn" data-target="panel-family"><span class="nav-ico">👨‍👩‍👧‍👦</span><span class="nav-label">Família e sincronização</span></button>
+   <button class="nav-btn" data-target="panel-activity"><span class="nav-ico">🕘</span><span class="nav-label">Atividade recente</span></button>
+   <button class="nav-btn" data-target="panel-tools"><span class="nav-ico">🧾</span><span class="nav-label">Notas fiscais e dados</span></button>
+  </nav>
+  <div class="sidebar-foot"><div class="sidebar-foot-note">Lista compartilhada<br><b>Compras da família</b></div><button id="collapseSidebar" class="collapse-btn">« <span>Recolher menu</span></button></div>
+ </aside>
+ <main>
+<section>
+ <div class="panel" id="panel-list">
+  <div class="row"><input id="search" placeholder="Buscar produto na lista..." aria-label="Buscar produto"><button class="small" id="addOpen">＋ Produto</button></div>
+  <div class="toolbar filters" id="filters"></div>
+  <div class="row" style="justify-content:space-between"><span class="note" id="progress">0 itens marcados</span><button class="small ghost" id="clearChecks">Desmarcar todos</button></div>
+  <div id="list"></div>
+ </div>
+ <div class="panel" id="panel-forecast">
+  <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
+   <h2 style="margin:0">Previsão inteligente de reposição</h2>
+   <span class="chip active">Sugestões para próxima lista</span>
+  </div>
+  <p class="note">O sistema estima o ciclo de compra usando as datas registradas no histórico. As sugestões dependem do seu histórico e precisam ser confirmadas por você.</p>
+  <div class="row" style="margin:10px 0;flex-wrap:wrap">
+   <label style="margin:0">Janela da próxima lista</label>
+   <select id="forecastWindow" aria-label="Janela da próxima lista"><option value="3">Próximos 3 dias</option><option value="7" selected>Próximos 7 dias</option><option value="14">Próximos 14 dias</option><option value="30">Próximos 30 dias</option></select>
+  </div>
+  <div id="forecastSummary" class="statgrid" style="margin:10px 0"></div>
+  <div id="forecast" class="empty">Registre compras do mesmo produto em datas diferentes para começar a previsão.</div>
+  <div class="note" style="margin-top:8px">Critério: intervalo mediano entre compras, tempo desde a última compra e janela selecionada. Com apenas um registro, não há base suficiente para prever.</div>
+ </div>\n <div class="panel" id="panel-activity"><h2>Atividade recente</h2><div id="activity" class="empty">As alterações feitas neste aparelho aparecem aqui.</div></div>
+ <div class="panel">
+  <h2>Importar / exportar lista</h2>
+  <div class="panel" style="box-shadow:none;background:#f8fbff;margin:0 0 14px;padding:14px">
+   <h2 style="margin-bottom:6px">Analisar fotos de notas fiscais</h2>
+   <p class="note">Selecione uma ou mais fotos das compras. A ideia é extrair produtos, quantidades, preços, mercado e data, revisar os dados e só então inserir no histórico. A foto não será arquivada no aplicativo.</p>
+   <div class="receipt-drop">
+    <div style="font-size:28px">🧾</div><b>Selecionar foto da nota fiscal</b>
+    <p class="note">JPG, PNG ou WEBP · a imagem será usada temporariamente durante a análise</p>
+    <input type="file" id="receiptPhotos" accept="image/*" multiple>
+    <div id="receiptPhotoPreview" class="note"></div>
+   </div>
+   <button type="button" class="small primary" id="analyzeReceiptPhotos" disabled style="margin-top:10px">Analisar notas com IA</button>
+   <div id="receiptAiStatus" class="note" style="margin-top:8px">A análise por IA depende de uma função segura no Supabase (Edge Function) com a chave do provedor configurada no servidor. A imagem não deve ser salva no Storage.</div>
+   <div id="receiptExtracted"></div>
+  </div>
+  <div class="row"><button id="copyList">Copiar lista</button><button id="exportData">Exportar backup</button><label class="small" style="margin:0"><input type="file" id="importData" accept=".json" hidden><button type="button" class="small" onclick="document.getElementById('importData').click()">Importar backup</button></label></div>
+  <div class="row" style="margin-top:8px"><button class="small" id="receiptImportBtn">Importar CSV de compras</button><input id="receiptFile" type="file" accept=".csv,text/csv" hidden></div>
+  <p class="note">Os dados ficam salvos neste navegador. Para transferir para outro aparelho, exporte o backup e importe nele.</p>
+ </div>
+</section>
+<aside>
+ <div class="panel" id="panel-family">
+  <h2>Família e sincronização</h2>
+  <div class="auth-card">
+   <b>Conta familiar</b>
+   <p class="note">Configure o projeto Supabase e entre com sua conta Google. Use somente a chave pública anon/publishable — nunca a service_role.</p>
+   <div class="auth-grid">
+    <input id="supabaseUrl" type="url" placeholder="URL do projeto Supabase (https://....supabase.co)">
+    <input id="supabaseAnon" type="password" placeholder="Chave pública anon / publishable">
+   </div>
+   <div class="auth-actions">
+    <button class="small" type="button" id="saveSupabaseConfig">Conectar projeto</button>
+    <button class="small primary" type="button" id="googleLogin" disabled>Entrar com Google</button>
+    <button class="small ghost" type="button" id="googleLogout" hidden>Sair</button>
+   </div>
+   <div class="note" id="authStatus" style="margin-top:8px">Autenticação ainda não configurada.</div>
+  </div>
+  <div class="note" id="syncStatus">Modo local: ainda não conectado ao Supabase. Cada aparelho mantém seus próprios dados.</div>
+  <label>Seu nome neste aparelho</label><input id="actorName" placeholder="Seu nome" style="width:100%">
+  <label>Nome da lista</label><input id="listName" value="Compras da família" style="width:100%">
+  <button class="small" id="saveProfile" style="margin-top:8px">Salvar identificação</button>
+  <p class="note">A sincronização entre contas Google será ativada após configurar o Supabase.</p>
+ </div>
+ <div class="panel">
+  <h2>Resumo da lista</h2><div class="statgrid">
+   <div class="stat"><b id="totalItems">0</b><span>Produtos cadastrados</span></div>
+   <div class="stat"><b id="checkedItems">0</b><span>Marcados como comprados</span></div>
+   <div class="stat"><b id="trackedItems">0</b><span>Com histórico de preço</span></div>
+   <div class="stat"><b id="lastSpend">R$ 0,00</b><span>Última compra registrada</span></div>
+  </div>
+ </div>
+ <div class="panel" id="panel-prices">
+  <h2>Registrar preço pago</h2>
+  <form id="priceForm">
+   <label>Produto</label><input id="priceProduct" list="products" placeholder="Digite ou escolha um produto" required style="width:100%"><datalist id="products"></datalist>
+   <div class="formgrid"><div><label>Preço pago (R$)</label><input id="priceValue" type="number" min="0.01" step=".01" placeholder="0,00" required style="width:100%"></div><div><label>Data da compra</label><input id="priceDate" type="date" required style="width:100%"></div><div class="wide"><label>Loja / observação</label><input id="priceStore" placeholder="Ex.: supermercado, promoção..." style="width:100%"></div></div>
+   <button class="primary" style="width:100%;margin-top:12px">Salvar preço</button>
+  </form>
+ </div>
+ <div class="panel">
+  <h2>Análise de preços</h2>
+  <div class="row"><input id="analyzeSearch" placeholder="Produto para analisar"><button class="small" id="analyze">Analisar</button></div>
+  <div id="analysis" class="empty">Escolha um produto para ver o último preço pago, menor preço e tendência.</div>
+  <p class="note">A comparação inicial usa o seu próprio histórico. Para dizer se está caro ou barato em relação ao mercado, será necessário consultar preços atuais de lojas ou inserir referências de mercado. A análise automática não substitui essa pesquisa.</p>
+ </div>
+ <div class="panel">
+  <h2>Histórico recente</h2><div id="history"></div>
+ </div>
+</aside>
+</main>
+</div>
+<nav class="bottom-bar" aria-label="Navegação rápida"><button class="bb-item active" data-target="panel-list"><span>🛒</span>Lista</button><button class="bb-item" data-target="panel-forecast"><span>🔮</span>Previsão</button><button class="bb-item bb-add" id="bottomAdd"><span>＋</span>Novo</button><button class="bb-item" data-target="panel-prices"><span>💲</span>Preços</button><button class="bb-item" data-target="panel-family"><span>👨‍👩‍👧‍👦</span>Família</button></nav>
+<div class="modalback" id="modal"><div class="modal"><div class="row" style="justify-content:space-between"><h2>Novo produto</h2><button class="small ghost" id="closeModal">✕</button></div>
+<form id="addForm"><label>Nome do produto</label><input id="newName" required style="width:100%" placeholder="Ex.: Arroz 5 kg"><label>Categoria</label><select id="newCat" style="width:100%"></select><button class="primary" style="width:100%;margin-top:14px">Adicionar à lista</button></form></div></div>
+<div id="toast"></div>
+<script>
+const categories=["Carnes e frios","Hortifruti","Laticínios e ovos","Bebidas","Doces e Snacks","Temperos e Condimentos","Conservas","Pães e Padaria","Higiene e limpeza","Grãos e Cereais","Mix funcional","Outros"];
+const seed=[
+["Carnes e frios",["Lombo suíno","Patinho","Paloma","Alcatra bovina","Presunto","Peito de peru","Mussarela fatiada","Bacon","Frango"]],
+["Hortifruti",["Alface","Cenoura","Banana prata","Mamão formosa","Beterraba","Manga Tommy","Limão Tahiti","Abacate","Tomate longa vida","Abóbora cabotiá","Maçã nacional","Abobrinha italiana","Chuchu","Batata-doce","Alho a granel","Cebola","Kiwi","Ameixa"]],
+["Laticínios e ovos",["Requeijão light","Leite Piracanjuba desnatado","Leite Piracanjuba integral","Creme de leite Piracanjuba","Iogurte Danone desnatado","Ovos"]],
+["Bebidas",["Suco La Fruit caju","Suco La Fruit uva","Coca-Cola 200 ml","Coca Zero 200 ml","Água"]],
+["Doces e Snacks",["Pipoca de micro-ondas","Massa de bolo","Goiabada","Brigadeiro de enrolar","Paçoca","Pé de moleque","Barra de proteína Nutrata chocolate ou morango (3)","Bolachas","Achocolatado em pó Toddy","Achocolatado em pó Nescau"]],
+["Temperos e Condimentos",["Folha de louro","Sal refinado","Caldo de carne","Sal de parrilla","Creme de alho","Maionese","Vinagre de álcool"]],
+["Conservas",["Palmito","Azeitona"]],
+["Pães e Padaria",["Pão integral 100% nutrição Do Forno","Pão de forma Amanda","Nutella pequena","Pão francês","Pão de queijo","Pão Wickbold do Forno"]],
+["Higiene e limpeza",["Papel toalha","Sabonete baby Dove","Sacos de lixo","Sabonete líquido banheiro","Desodorante Rexona","Lenço Johnson's"]],
+["Grãos e Cereais",["Arroz","Feijão","Granola tradicional"]],
+["Mix funcional",["Farelo de aveia","Chia","Semente de abóbora","Nibs de cacau","Castanha-do-Pará","Semente de girassol","Linhaça"]]
+];
+let data=JSON.parse(localStorage.getItem("compras_v2")||localStorage.getItem("compras_v1")||"null");
+if(data){data.activity=data.activity||[];data.profile=data.profile||{actor:"",listName:"Compras da família"};}
+if(!data){data={items:[],prices:[],activity:[],profile:{actor:"",listName:"Compras da família"}};seed.forEach(([cat,names])=>names.forEach(name=>data.items.push({id:uid(),name,cat,checked:false})));
+ // Preços legíveis nas duas notas enviadas: registros iniciais identificados manualmente.
+ data.prices=[
+ {name:"Suco La Fruit caju",value:7.99,date:"2026-10-30",store:"Nota enviada"},
+ {name:"Suco La Fruit uva",value:7.99,date:"2026-10-30",store:"Nota enviada"},
+ {name:"Leite Piracanjuba desnatado",value:3.99,date:"2026-10-30",store:"Nota enviada"},
+ {name:"Leite Piracanjuba integral",value:6.99,date:"2026-10-30",store:"Nota enviada"},
+ {name:"Coca-Cola 200 ml",value:2.79,date:"2026-10-30",store:"Nota enviada"},
+ {name:"Café 3 Corações extraforte",value:29.99,date:"2026-10-30",store:"Nota enviada"},
+ {name:"Arroz cristal tradicional",value:28.99,date:"2026-10-30",store:"Nota enviada"},
+ {name:"Granola tradicional",value:17.99,date:"2026-10-30",store:"Nota enviada"}
+ ];}
+function uid(){return Math.random().toString(36).slice(2,10)}
+function save(){data.activity=data.activity||[];localStorage.setItem("compras_v2",JSON.stringify(data));render()}
+function actor(){return (data.profile&&data.profile.actor)||"Pessoa deste aparelho"}
+function logActivity(action,item){data.activity=data.activity||[];data.activity.unshift({action,item:item||"",actor:actor(),at:new Date().toISOString()});data.activity=data.activity.slice(0,100)}
+
+function money(v){return Number(v).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}
+function dateBR(d){return d?new Date(d+"T12:00:00").toLocaleDateString("pt-BR"):"—"}
+let active="Todos";
+function toast(t){let e=document.getElementById("toast");e.textContent=t;e.style.display="block";setTimeout(()=>e.style.display="none",2200)}
+
+function median(values){
+ const a=[...values].sort((x,y)=>x-y); if(!a.length)return 0;
+ const m=Math.floor(a.length/2); return a.length%2?a[m]:(a[m-1]+a[m])/2;
+}
+function daysBetween(a,b){
+ const x=new Date(a+"T12:00:00"),y=new Date(b+"T12:00:00");
+ return Math.round((y-x)/86400000);
+}
+function getReplenishmentSuggestions(){
+ const today=new Date();today.setHours(12,0,0,0);
+ const todayISO=today.toISOString().slice(0,10);
+ const windowDays=Number(document.getElementById("forecastWindow")?.value||7);
+ const groups=new Map();
+ (data.prices||[]).forEach(p=>{
+   if(!p.name||!p.date)return;
+   const key=norm(p.name);
+   if(!groups.has(key))groups.set(key,{name:p.name,dates:[]});
+   groups.get(key).dates.push(p.date);
+ });
+ const result=[];
+ groups.forEach(g=>{
+   const dates=[...new Set(g.dates)].sort();
+   if(dates.length<2)return;
+   const intervals=[];
+   for(let i=1;i<dates.length;i++){
+     const gap=daysBetween(dates[i-1],dates[i]);
+     if(gap>0 && gap<=365)intervals.push(gap);
+   }
+   if(!intervals.length)return;
+   const cycle=Math.round(median(intervals));
+   const last=dates[dates.length-1];
+   const elapsed=Math.max(0,daysBetween(last,todayISO));
+   const remaining=cycle-elapsed;
+   const due=new Date(last+"T12:00:00");due.setDate(due.getDate()+cycle);
+   if(remaining<=windowDays){
+     const item=data.items.find(i=>norm(i.name)===norm(g.name));
+     result.push({
+       name:g.name,cycle,elapsed,remaining,due,
+       confidence:dates.length>=4?"Boa":dates.length===3?"Média":"Inicial",
+       count:dates.length,
+       exists:!!item,
+       checked:!!(item&&item.checked),
+       status:remaining<0?"Atrasado":remaining===0?"Previsto hoje":"Previsto em breve"
+     });
+   }
+ });
+ return result.sort((a,b)=>a.remaining-b.remaining);
+}
+function renderReplenishment(){
+ const suggestions=getReplenishmentSuggestions();
+ const overdue=suggestions.filter(s=>s.remaining<0).length;
+ const soon=suggestions.filter(s=>s.remaining>=0).length;
+ document.getElementById("forecastSummary").innerHTML=
+  `<div class="stat"><b>${suggestions.length}</b><span>Sugestões na janela</span></div>
+   <div class="stat"><b>${overdue}</b><span>Reposição atrasada</span></div>`;
+ const box=document.getElementById("forecast");
+ if(!suggestions.length){
+   box.innerHTML='<div class="empty">Nenhum produto previsto para essa janela. Continue registrando as compras; o sistema precisa de pelo menos duas datas por produto.</div>';
+   return;
+ }
+ box.innerHTML=suggestions.map(s=>{
+   const dueLabel=s.remaining<0?`${Math.abs(s.remaining)} dia(s) de atraso`:s.remaining===0?"Hoje":`em ${s.remaining} dia(s)`;
+   const button=s.checked
+    ?'<span class="chip active">Já marcado</span>'
+    :`<button class="small primary" data-suggest-add="${esc(s.name)}">Adicionar à lista</button>`;
+   return `<div class="item" style="align-items:center;flex-wrap:wrap">
+    <div class="name"><b>${esc(s.name)}</b>
+     <small>${s.status} · ${dueLabel} · ciclo médio ${s.cycle} dias</small>
+     <small>${s.count} compras registradas · confiança ${s.confidence} · próxima previsão ${s.due.toLocaleDateString("pt-BR")}</small>
+    </div>${button}
+   </div>`;
+ }).join("");
+ document.querySelectorAll("[data-suggest-add]").forEach(btn=>btn.onclick=()=>{
+   const name=btn.dataset.suggestAdd;
+   let item=data.items.find(i=>norm(i.name)===norm(name));
+   if(item){item.checked=false;}
+   else data.items.push({id:uid(),name,cat:"Outros",checked:false});
+   logActivity("Incluiu sugestão de reposição",name);
+   save();toast(name+" incluído na lista");
+ });
+}
+function render(){
+ const q=document.getElementById("search").value.toLowerCase();
+ const cats=["Todos",...categories.filter(c=>data.items.some(i=>i.cat===c))];
+ document.getElementById("filters").innerHTML=cats.map(c=>`<button class="chip ${active===c?'active':''}" data-cat="${c}">${c}</button>`).join("");
+ document.querySelectorAll("[data-cat]").forEach(b=>b.onclick=()=>{active=b.dataset.cat;render()});
+ let shown=data.items.filter(i=>(active==="Todos"||i.cat===active)&&i.name.toLowerCase().includes(q));
+ document.getElementById("list").innerHTML=categories.map(cat=>{let arr=shown.filter(i=>i.cat===cat);if(!arr.length)return "";
+ return `<div class="category"><h3>${cat}</h3>${arr.map(i=>{let p=data.prices.filter(x=>norm(x.name)===norm(i.name)).sort((a,b)=>b.date.localeCompare(a.date))[0];let all=data.prices.filter(x=>norm(x.name)===norm(i.name)).sort((a,b)=>b.date.localeCompare(a.date));let best=all.length?all.reduce((m,x)=>Number(x.value)<Number(m.value)?x:m,all[0]):null;return `<div class="item ${i.checked?'done':''}"><input type="checkbox" data-check="${i.id}" ${i.checked?'checked':''}><div class="name">${esc(i.name)}${p?`<small>Última compra: ${dateBR(p.date)} · ${money(p.value)}</small><div class="price-insight"><span class="best">Menor: ${money(best.value)}${best.date?` · ${dateBR(best.date)}`:""}</span><span>Último: ${money(p.value)}</span></div>`:'<small>Sem preço registrado</small>'}</div><div class="item-actions"><button class="small ghost" data-price="${i.id}" title="Registrar preço">＋</button><button class="small ghost" data-del="${i.id}" title="Excluir">×</button></div></div>`}).join("")}</div>`}).join("")||'<div class="empty">Nenhum produto encontrado.</div>';
+ document.querySelectorAll("[data-check]").forEach(e=>e.onchange=()=>{let i=data.items.find(x=>x.id===e.dataset.check);i.checked=e.checked;logActivity(e.checked?"Marcou como comprado":"Desmarcou",i.name);save()});
+ document.querySelectorAll("[data-del]").forEach(e=>e.onclick=()=>{let removed=data.items.find(x=>x.id===e.dataset.del);data.items=data.items.filter(x=>x.id!==e.dataset.del);logActivity("Excluiu",removed&&removed.name);save()});
+ document.querySelectorAll("[data-price]").forEach(e=>e.onclick=()=>{let i=data.items.find(x=>x.id===e.dataset.price);document.getElementById("priceProduct").value=i.name;document.getElementById("priceValue").focus()});
+ let checked=data.items.filter(i=>i.checked).length;
+ document.getElementById("progress").textContent=`${checked} de ${data.items.length} produtos marcados`;
+ document.getElementById("totalItems").textContent=data.items.length;document.getElementById("checkedItems").textContent=checked;
+ document.getElementById("trackedItems").textContent=new Set(data.prices.map(p=>norm(p.name))).size;
+ let latest=[...data.prices].sort((a,b)=>b.date.localeCompare(a.date))[0];document.getElementById("lastSpend").textContent=latest?money(latest.value):"R$ 0,00";
+ document.getElementById("products").innerHTML=data.items.map(i=>`<option value="${esc(i.name)}">`).join("");
+ let hist=[...data.prices].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,8);
+ document.getElementById("history").innerHTML=hist.length?`<table><tr><th>Produto</th><th>Data</th><th>Preço</th></tr>${hist.map(p=>`<tr><td>${esc(p.name)}</td><td>${dateBR(p.date)}</td><td>${money(p.value)}</td></tr>`).join("")}</table>`:'<div class="empty">Nenhum preço registrado.</div>';
+ let activity=data.activity||[];
+ document.getElementById("activity").innerHTML=activity.length?activity.slice(0,8).map(a=>`<div class="item"><div class="name"><b>${esc(a.actor)}</b> ${esc(a.action.toLowerCase())}<small>${esc(a.item)} · ${new Date(a.at).toLocaleString("pt-BR")}</small></div></div>`).join(""):'<div class="empty">Nenhuma atividade registrada.</div>';
+ let forecasts=[];
+ data.items.forEach(it=>{let arr=(data.prices||[]).filter(p=>norm(p.name)===norm(it.name)).sort((a,b)=>a.date.localeCompare(b.date));if(arr.length>=2){let gaps=[];for(let j=1;j<arr.length;j++)gaps.push((new Date(arr[j].date)-new Date(arr[j-1].date))/86400000);let avg=gaps.reduce((a,b)=>a+b,0)/gaps.length;let due=new Date(arr[arr.length-1].date);due.setDate(due.getDate()+Math.round(avg));forecasts.push({name:it.name,due,avg});}});
+ forecasts.sort((a,b)=>a.due-b.due);
+ document.getElementById("forecast").innerHTML=forecasts.length?forecasts.slice(0,10).map(f=>`<div class="item"><div class="name">${esc(f.name)}<small>Intervalo médio: ${Math.round(f.avg)} dias · previsão: ${f.due.toLocaleDateString("pt-BR")}</small></div></div>`).join(""):'<div class="empty">Ainda não há histórico suficiente. Registre pelo menos duas compras do mesmo produto em datas diferentes.</div>';
+ document.getElementById("actorName").value=(data.profile&&data.profile.actor)||"";
+ document.getElementById("listName").value=(data.profile&&data.profile.listName)||"Compras da família";
+ renderReplenishment();
+}
+function norm(s){return (s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim()}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+document.getElementById("search").oninput=render;
+document.getElementById("forecastWindow").onchange=renderReplenishment;
+document.getElementById("clearChecks").onclick=()=>{data.items.forEach(i=>i.checked=false);save()};
+document.getElementById("addOpen").onclick=()=>document.getElementById("modal").style.display="flex";
+document.getElementById("closeModal").onclick=()=>document.getElementById("modal").style.display="none";
+document.getElementById("newCat").innerHTML=categories.map(c=>`<option>${c}</option>`).join("");
+document.getElementById("addForm").onsubmit=e=>{e.preventDefault();let name=document.getElementById("newName").value.trim(),cat=document.getElementById("newCat").value;if(!data.items.some(i=>norm(i.name)===norm(name)))data.items.push({id:uid(),name,cat,checked:false});logActivity("Adicionou",name);save();e.target.reset();document.getElementById("modal").style.display="none";toast("Produto adicionado")};
+document.getElementById("priceDate").value=new Date().toISOString().slice(0,10);
+document.getElementById("priceForm").onsubmit=e=>{e.preventDefault();let name=document.getElementById("priceProduct").value.trim(),value=Number(document.getElementById("priceValue").value),date=document.getElementById("priceDate").value,store=document.getElementById("priceStore").value.trim();if(!name||!value||!date)return;
+ if(!data.items.some(i=>norm(i.name)===norm(name)))data.items.push({id:uid(),name,cat:"Outros",checked:true});
+ data.prices.push({name,value,date,store});logActivity("Registrou compra no histórico de consumo",name+" · "+money(value));save();e.target.reset();document.getElementById("priceDate").value=new Date().toISOString().slice(0,10);toast("Preço registrado")};
+document.getElementById("analyze").onclick=()=>{let name=document.getElementById("analyzeSearch").value.trim();let arr=data.prices.filter(p=>norm(p.name)===norm(name)).sort((a,b)=>a.date.localeCompare(b.date));let box=document.getElementById("analysis");if(!arr.length){box.textContent="Ainda não há histórico suficiente para esse produto. Registre uma compra ou importe mais notas.";return}
+ let last=arr[arr.length-1],min=Math.min(...arr.map(x=>x.value)),max=Math.max(...arr.map(x=>x.value)),avg=arr.reduce((s,x)=>s+x.value,0)/arr.length,prev=arr.length>1?arr[arr.length-2]:null;
+ let trend=prev?((last.value-prev.value)/prev.value*100):null;
+ box.innerHTML=`<b>${esc(name)}</b><p>Último preço: <b>${money(last.value)}</b> (${dateBR(last.date)})</p><p>Menor registrado: <b class="good">${money(min)}</b> · Média: <b>${money(avg)}</b> · Maior: <b>${money(max)}</b></p>${trend===null?'<p class="neutral">Só há um registro: ainda não é possível avaliar tendência.</p>':`<p class="${trend>0?'bad':trend<0?'good':'neutral'}">${trend>0?'Subiu':trend<0?'Caiu':'Manteve'} ${Math.abs(trend).toFixed(1).replace('.',',')}% em relação ao registro anterior.</p>`}<p class="note">${arr.length} registro(s) no histórico. A classificação caro/barato exige comparação com preços atuais de mercado.</p>`;
+};
+document.getElementById("copyList").onclick=async()=>{let txt=categories.map(c=>{let a=data.items.filter(i=>i.cat===c);return a.length?c+"\n"+a.map(i=>(i.checked?"[x] ":"[ ] ")+i.name).join("\n"):""}).filter(Boolean).join("\n\n");try{await navigator.clipboard.writeText(txt);toast("Lista copiada")}catch(e){toast("Não foi possível copiar automaticamente")}};
+document.getElementById("exportData").onclick=()=>{let blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="backup-lista-compras.json";a.click();URL.revokeObjectURL(a.href)};
+document.getElementById("importData").onchange=e=>{let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{let x=JSON.parse(r.result);if(!Array.isArray(x.items)||!Array.isArray(x.prices))throw 0;x.activity=x.activity||[];x.profile=x.profile||{actor:"",listName:"Compras da família"};data=x;save();toast("Backup importado")}catch(_){toast("Arquivo de backup inválido")}};r.readAsText(f)};
+render();
+</script>
+<script>
+(()=>{
+ const body=document.body, sidebar=document.getElementById('appSidebar');
+ const closeMobile=()=>body.classList.remove('sidebar-open');
+ document.getElementById('mobileMenu')?.addEventListener('click',()=>body.classList.toggle('sidebar-open'));
+ document.getElementById('sidebarBackdrop')?.addEventListener('click',closeMobile);
+ document.getElementById('collapseSidebar')?.addEventListener('click',()=>{body.classList.toggle('sidebar-collapsed');localStorage.setItem('compras_sidebar',body.classList.contains('sidebar-collapsed')?'collapsed':'expanded')});
+ if(localStorage.getItem('compras_sidebar')==='collapsed' && innerWidth>900)body.classList.add('sidebar-collapsed');
+ const toggleTheme=()=>{document.documentElement.classList.toggle('dark');localStorage.setItem('compras_theme',document.documentElement.classList.contains('dark')?'dark':'light')};
+ if(localStorage.getItem('compras_theme')==='dark')document.documentElement.classList.add('dark');
+ document.getElementById('themeToggle')?.addEventListener('click',toggleTheme);
+
+ // Transformar os antigos blocos longos em telas independentes.
+ const main=document.querySelector('.app-shell>main');
+ const allPanels=[...main.querySelectorAll('.panel')];
+ const byId=id=>document.getElementById(id);
+ const pages={
+  'panel-list':['panel-list'],
+  'panel-forecast':['panel-forecast'],
+  'panel-prices':['panel-prices'],
+  'panel-family':['panel-family'],
+  'panel-activity':['panel-activity'],
+  'panel-tools':['panel-tools']
+ };
+ const pageTitles={
+  'panel-list':['Lista de compras','Produtos, categorias e preços de referência.'],
+  'panel-forecast':['Previsão inteligente','Estimativa de reposição com base no histórico de compras.'],
+  'panel-prices':['Preços e histórico','Registre compras, compare valores e acompanhe tendências.'],
+  'panel-family':['Família e sincronização','Contas, compartilhamento e permissões familiares.'],
+  'panel-activity':['Atividade recente','Acompanhe as alterações realizadas na lista.'],
+  'panel-tools':['Notas fiscais e dados','Importação por imagem, backup e transferência de dados.']
+ };
+ const summary=allPanels.find(p=>p.querySelector('#totalItems'));
+ const analysis=allPanels.find(p=>p.querySelector('#analysis'));
+ const history=allPanels.find(p=>p.querySelector('#history'));
+ const tools=allPanels.find(p=>p.querySelector('#copyList'));
+ main.innerHTML='';
+ Object.keys(pages).forEach((id,idx)=>{
+   const page=document.createElement('section');page.className='app-page'+(idx===0?' active':'');page.id='view-'+id;
+   const h=document.createElement('h1');h.className='page-title';h.textContent=pageTitles[id][0];
+   const sub=document.createElement('p');sub.className='page-subtitle';sub.textContent=pageTitles[id][1];
+   page.append(h,sub);main.append(page);
+ });
+ const add=(view,node)=>{if(node)byId('view-'+view).append(node)};
+ add('panel-list',byId('panel-list'));add('panel-list',summary);
+ add('panel-forecast',byId('panel-forecast'));
+ add('panel-prices',byId('panel-prices'));add('panel-prices',analysis);add('panel-prices',history);
+ add('panel-family',byId('panel-family'));
+ add('panel-activity',byId('panel-activity'));
+ add('panel-tools',tools);
+ // Hide legacy section wrappers by emptying original parents already detached from main.
+ function go(target){
+   if(!byId('view-'+target))return;
+   document.querySelectorAll('.app-page').forEach(p=>p.classList.toggle('active',p.id==='view-'+target));
+   closeMobile();
+   document.querySelectorAll('[data-target]').forEach(b=>b.classList.toggle('active',b.dataset.target===target));
+   window.scrollTo({top:0,behavior:'instant'});
+ }
+ document.querySelectorAll('[data-target]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.target)));
+ window.shoppingNavigate=go;
+
+ document.getElementById('bottomAdd')?.addEventListener('click',()=>document.getElementById('addOpen')?.click());
+ const oldSaveProfile=document.getElementById('saveProfile');
+ const sync=document.getElementById('syncStatus');
+ if(sync){const pill=document.querySelector('#headerSync span');const update=()=>{if(pill)pill.textContent=sync.textContent.includes('Modo local')?'Modo local':'Status';};update();new MutationObserver(update).observe(sync,{childList:true,subtree:true,characterData:true});}
+})();
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(()=>{
+ const $=id=>document.getElementById(id);
+ let sb=null;
+ const saved=JSON.parse(localStorage.getItem('compras_supabase_config')||'{}');
+ if($('supabaseUrl'))$('supabaseUrl').value=saved.url||'';
+ if($('supabaseAnon'))$('supabaseAnon').value=saved.key||'';
+ const status=(msg)=>{if($('authStatus'))$('authStatus').textContent=msg;if($('syncStatus'))$('syncStatus').textContent=msg;};
+ async function init(){
+   const url=$('supabaseUrl')?.value.trim(),key=$('supabaseAnon')?.value.trim();
+   if(!url||!key){status('Informe a URL e a chave pública do projeto Supabase.');return false;}
+   if(!/^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/i.test(url)){status('URL do Supabase inválida. Use a URL do projeto.');return false;}
+   if(!window.supabase?.createClient){status('Não foi possível carregar a biblioteca Supabase. Verifique a conexão.');return false;}
+   localStorage.setItem('compras_supabase_config',JSON.stringify({url,key}));
+   sb=window.supabase.createClient(url.replace(/\/$/,''),key);
+   $('googleLogin').disabled=false;
+   const {data:{session},error}=await sb.auth.getSession();
+   if(error){status('Erro ao consultar sessão: '+error.message);return false;}
+   if(session){status('Conectado como '+(session.user.email||'usuário autenticado')+'. Login ativo; sincronização dos dados será habilitada na próxima etapa.');$('googleLogout').hidden=false;$('googleLogin').hidden=true;}
+   else {status('Projeto conectado. Clique em “Entrar com Google” para autenticar.');}
+   sb.auth.onAuthStateChange((_event,session)=>{
+     if(session){status('Autenticado: '+(session.user.email||'Google')+'. Os dados ainda estão em modo local até ativarmos a sincronização.');$('googleLogout').hidden=false;$('googleLogin').hidden=true;}
+     else {$('googleLogout').hidden=true;$('googleLogin').hidden=false;status('Projeto conectado, sem usuário autenticado.');}
+   });
+   return true;
+ }
+ $('saveSupabaseConfig')?.addEventListener('click',init);
+ $('googleLogin')?.addEventListener('click',async()=>{
+   if(!sb && !(await init()))return;
+   const {error}=await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.href}});
+   if(error)status('Falha no login Google: '+error.message);
+ });
+ $('googleLogout')?.addEventListener('click',async()=>{if(sb){const {error}=await sb.auth.signOut();status(error?'Erro ao sair: '+error.message:'Sessão encerrada.');}});
+ if(saved.url&&saved.key)init();
+
+ // Seleção temporária de fotos: mostra prévias locais; não envia nem persiste imagem.
+ $('receiptPhotos')?.addEventListener('change',e=>{
+   const files=[...(e.target.files||[])],box=$('receiptPhotoPreview');
+   box.innerHTML='';
+   files.forEach(f=>{
+     if(!f.type.startsWith('image/'))return;
+     const img=document.createElement('img');img.className='receipt-preview';img.alt='Prévia temporária da nota fiscal';img.src=URL.createObjectURL(f);box.append(img);
+   });
+   $('analyzeReceiptPhotos').disabled=!files.length;
+   $('receiptAiStatus').textContent=files.length+' imagem(ns) selecionada(s). Nenhuma foto foi enviada ou armazenada. A análise será habilitada após configurar a função segura de IA no Supabase.';
+ });
+ $('analyzeReceiptPhotos')?.addEventListener('click',()=>{
+   $('receiptAiStatus').textContent='A interface de importação está preparada, mas a análise automática ainda depende da Edge Function de IA. As fotos permanecem somente no navegador e não são salvas.';
+ });
+})();
+</script>
+
+</body></html>
