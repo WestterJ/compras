@@ -1,242 +1,77 @@
-/* Minha Lista de Compras V7 — Supabase (projeto "Bases"): login, sincronização, família e IA de notas.
-   Sem login o app segue em modo local (localStorage). A chave abaixo é a publishable (pública); nunca use a service_role. */
-(() => {
+/* Minha Lista de Compras V8 — Supabase, histórico com associação de produtos e IA de notas robusta.
+   No navegador, use somente a chave publishable; nunca exponha service_role. */
+(()=>{
 const SB_URL='https://ytsabhbkywymtevkeokg.supabase.co',SB_KEY='sb_publishable_cyIolmmdF5zKN0rAOJQOXg_ECcSq7z6';
-const $=id=>document.getElementById(id);
-const sb=window.supabase?.createClient(SB_URL,SB_KEY);
-let me=null,listId=null,role=null,cats={},snap=null,lists=[],members=[],busy=Promise.resolve(),timer=null,dirty=false,aiOk=false,notas=[];
-const isUUID=s=>/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(s||'');
-const persist=()=>localStorage.setItem('compras_v2',JSON.stringify(data));
-const setSync=(t,pill)=>{$('syncStatus').textContent=t;$('headerSync').lastElementChild.textContent=pill||t};
-const auth=m=>{$('authStatus').textContent=m||''};
+const $=id=>document.getElementById(id),sb=window.supabase?.createClient(SB_URL,SB_KEY);
+let me=null,listId=null,role=null,cats={},snap=null,lists=[],members=[],busy=Promise.resolve(),timer=null,dirty=false,aiOk=false,notas=[],ctl=null;
+const isUUID=s=>/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(s||''),persist=()=>localStorage.setItem('compras_v2',JSON.stringify(data));
+const setSync=(t,p)=>{$('syncStatus').textContent=t;$('headerSync').lastElementChild.textContent=p||t},auth=m=>$('authStatus').textContent=m||'';
 window.uid=()=>crypto.randomUUID();
 if(!sb){auth('Biblioteca Supabase não carregou; o app segue em modo local.');return}
-
-/* ---------- sincronização ---------- */
 const emptySnap=()=>({items:new Map(),pur:{}});
-async function ensureCats(){
-  const {data:c,error}=await sb.from('shopping_categories').upsert(categories.map((name,i)=>({list_id:listId,name,sort_order:i})),{onConflict:'list_id,name'}).select('id,name');
-  if(error)throw error;cats=Object.fromEntries(c.map(x=>[x.name,x.id]));
-}
-async function productIds(names){
-  const u=[...new Set(names)];
-  const {data:p,error}=await sb.from('shopping_products').upsert(u.map(name=>({list_id:listId,name})),{onConflict:'list_id,name'}).select('id,name');
-  if(error)throw error;return Object.fromEntries(p.map(x=>[x.name,x.id]));
-}
+async function ensureCats(){const {data:c,error}=await sb.from('shopping_categories').upsert(categories.map((name,i)=>({list_id:listId,name,sort_order:i})),{onConflict:'list_id,name'}).select('id,name');if(error)throw error;cats=Object.fromEntries(c.map(x=>[x.name,x.id]))}
+async function productIds(names){const u=[...new Set(names)];const {data:p,error}=await sb.from('shopping_products').upsert(u.map(name=>({list_id:listId,name})),{onConflict:'list_id,name'}).select('id,name');if(error)throw error;return Object.fromEntries(p.map(x=>[x.name,x.id]))}
+async function loadMembers(){const {data:m,error}=await sb.from('shopping_members').select('id,user_id,invited_email,role').eq('list_id',listId);if(error)throw error;members=m||[];role=members.find(x=>x.user_id===me.id)?.role||'viewer'}
 async function pull(wanted){
-  const {data:ls,error}=await sb.from('shopping_lists').select('id,name').order('created_at');
-  if(error)throw error;lists=ls;
-  if(!lists.length){
-    const {data:id,error:e2}=await sb.rpc('shopping_create_list',{p_name:data.profile.listName||'Compras da família'});
-    if(e2)throw e2;listId=id;lists=[{id,name:data.profile.listName||'Compras da família'}];role='owner';
-    await ensureCats();snap=emptySnap();await doPush();await loadMembers();return;
-  }
-  listId=(wanted&&lists.find(l=>l.id===wanted)?.id)||lists.find(l=>l.id===localStorage.compras_list)?.id||lists[0].id;
-  localStorage.compras_list=listId;
-  if(!localStorage.compras_backup_pre_cloud)localStorage.compras_backup_pre_cloud=JSON.stringify(data);
-  await ensureCats();
-  const cn=Object.fromEntries(Object.entries(cats).map(([n,i])=>[i,n]));
-  const [it,pu,ac]=await Promise.all([
-    sb.from('shopping_items').select('id,name,is_checked,category_id,product_id').eq('list_id',listId).order('created_at'),
-    sb.from('shopping_purchases').select('id,store_name,purchased_at,total_amount,shopping_purchase_items(unit_price,total_price,quantity,unit,product_name)').eq('list_id',listId).order('purchased_at',{ascending:false}).limit(500),
-    sb.from('shopping_activity').select('action,details,created_at').eq('list_id',listId).order('created_at',{ascending:false}).limit(100)]);
-  for(const r of [it,pu,ac])if(r.error)throw r.error;
-  await loadMembers();
-  const ld=d=>{const x=new Date(d);return new Date(x-x.getTimezoneOffset()*6e4).toISOString().slice(0,10)};
-  data.items=it.data.map(r=>({id:r.id,name:r.name,cat:cn[r.category_id]||'Outros',checked:r.is_checked}));
-  data.prices=pu.data.flatMap(p=>p.shopping_purchase_items.map(i=>({name:i.product_name,value:Number(i.unit_price??i.total_price),qty:Number(i.quantity)||1,unit:i.unit,date:ld(p.purchased_at),store:p.store_name||'',grp:p.id, sent:1})));
-  data.activity=ac.data.map(a=>({action:a.action,item:a.details?.item||'',actor:a.details?.actor||'Alguém',at:a.created_at,sent:1}));
-  data.profile.listName=lists.find(l=>l.id===listId).name;
-  snap={items:new Map(data.items.map(i=>[i.id,{checked:!!i.checked}])),pur:Object.fromEntries(pu.data.map(p=>[p.id,{id:p.id,total:Number(p.total_amount)||0}]))};
-  persist();render();
-}
-async function loadMembers(){
-  const {data:m}=await sb.from('shopping_members').select('id,user_id,invited_email,role').eq('list_id',listId);
-  members=m||[];role=members.find(x=>x.user_id===me.id)?.role||'viewer';
+ const {data:ls,error}=await sb.from('shopping_lists').select('id,name').order('created_at');if(error)throw error;lists=ls||[];
+ if(!lists.length){const {data:id,error:e}=await sb.rpc('shopping_create_list',{p_name:data.profile.listName||'Compras da família'});if(e)throw e;listId=id;lists=[{id,name:data.profile.listName||'Compras da família'}];role='owner';await ensureCats();snap=emptySnap();await doPush();await loadMembers();return}
+ listId=(wanted&&lists.find(l=>l.id===wanted)?.id)||lists.find(l=>l.id===localStorage.compras_list)?.id||lists[0].id;localStorage.compras_list=listId;
+ if(!localStorage.compras_backup_pre_cloud)localStorage.compras_backup_pre_cloud=JSON.stringify(data);
+ await ensureCats();const cn=Object.fromEntries(Object.entries(cats).map(([n,id])=>[id,n]));
+ const [it,pu,ac]=await Promise.all([
+  sb.from('shopping_items').select('id,name,is_checked,category_id,product_id').eq('list_id',listId).order('created_at'),
+  sb.from('shopping_purchases').select('id,store_name,purchased_at,total_amount,shopping_purchase_items(id,product_id,unit_price,total_price,quantity,unit,product_name)').eq('list_id',listId).order('purchased_at',{ascending:false}).limit(500),
+  sb.from('shopping_activity').select('action,details,created_at').eq('list_id',listId).order('created_at',{ascending:false}).limit(100)]);
+ for(const r of [it,pu,ac])if(r.error)throw r.error;await loadMembers();
+ const ld=d=>{const x=new Date(d);return new Date(x-x.getTimezoneOffset()*6e4).toISOString().slice(0,10)};
+ data.items=it.data.map(r=>({id:r.id,name:r.name,cat:cn[r.category_id]||'Outros',checked:r.is_checked,productId:r.product_id||null}));
+ data.prices=pu.data.flatMap(p=>(p.shopping_purchase_items||[]).map(i=>({name:i.product_name,value:Number(i.unit_price??i.total_price),qty:Number(i.quantity)||1,unit:i.unit,date:ld(p.purchased_at),store:p.store_name||'',grp:p.id,sent:1,purchaseItemId:i.id,productId:i.product_id||null})));
+ data.activity=ac.data.map(a=>({action:a.action,item:a.details?.item||'',actor:a.details?.actor||'Alguém',at:a.created_at,sent:1}));data.profile.listName=lists.find(l=>l.id===listId)?.name||data.profile.listName;
+ snap={items:new Map(data.items.map(i=>[i.id,{checked:!!i.checked}])),pur:Object.fromEntries(pu.data.map(p=>[p.id,{id:p.id,total:Number(p.total_amount)||0}]))};persist();render();
 }
 async function doPush(){
-  if(!listId||role==='viewer')return;
-  const now=new Date().toISOString(),cur=new Map(data.items.map(i=>[i.id,i]));
-  const gone=[...snap.items.keys()].filter(id=>!cur.has(id));
-  if(gone.length){const {error}=await sb.from('shopping_items').delete().in('id',gone);if(error)throw error;gone.forEach(id=>snap.items.delete(id))}
-  const nw=data.items.filter(i=>!snap.items.has(i.id));
-  if(nw.length){
-    nw.forEach(i=>{if(!isUUID(i.id))i.id=uid()});
-    const {data:pr,error}=await sb.from('shopping_products').upsert(nw.map(i=>({list_id:listId,name:i.name,category_id:cats[i.cat]||null})),{onConflict:'list_id,name'}).select('id,name');
-    if(error)throw error;const pm=Object.fromEntries(pr.map(p=>[p.name,p.id]));
-    const {error:e2}=await sb.from('shopping_items').insert(nw.map(i=>({id:i.id,list_id:listId,product_id:pm[i.name],category_id:cats[i.cat]||null,name:i.name,is_checked:!!i.checked,added_by:me.id,checked_by:i.checked?me.id:null,checked_at:i.checked?now:null,created_at:now,updated_at:now})));
-    if(e2)throw e2;nw.forEach(i=>snap.items.set(i.id,{checked:!!i.checked}));
-  }
-  const on=[],off=[];
-  data.items.forEach(i=>{const s=snap.items.get(i.id);if(s&&s.checked!==!!i.checked)(i.checked?on:off).push(i.id)});
-  if(on.length){const {error}=await sb.from('shopping_items').update({is_checked:true,checked_by:me.id,checked_at:now,updated_at:now}).in('id',on);if(error)throw error}
-  if(off.length){const {error}=await sb.from('shopping_items').update({is_checked:false,checked_by:null,checked_at:null,updated_at:now}).in('id',off);if(error)throw error}
-  [...on,...off].forEach(id=>snap.items.get(id).checked=on.includes(id));
-  const np=data.prices.filter(p=>!p.sent),groups={};
-  np.forEach(p=>{const g=p.grp||(p.grp=p.date+'|'+norm(p.store));(groups[g]=groups[g]||[]).push(p)});
-  for(const [g,arr] of Object.entries(groups)){
-    let pu=snap.pur[g];
-    if(!pu){
-      const {data:r,error}=await sb.from('shopping_purchases').insert({list_id:listId,store_name:arr[0].store||null,purchased_at:new Date(arr[0].date+'T12:00:00').toISOString(),total_amount:0,receipt_source:arr[0].ocr?'ocr':'manual',created_by:me.id}).select('id').single();
-      if(error)throw error;pu=snap.pur[g]={id:r.id,total:0};
-    }
-    const pm=await productIds(arr.map(p=>p.name));
-    const rows=arr.map(p=>({purchase_id:pu.id,product_id:pm[p.name]||null,product_name:p.name,quantity:p.qty||1,unit:p.unit||'un',unit_price:p.value,total_price:+(p.value*(p.qty||1)).toFixed(2)}));
-    const {error}=await sb.from('shopping_purchase_items').insert(rows);if(error)throw error;
-    pu.total=+(pu.total+rows.reduce((s,r)=>s+r.total_price,0)).toFixed(2);
-    const {error:e3}=await sb.from('shopping_purchases').update({total_amount:pu.total}).eq('id',pu.id);if(e3)throw e3;
-    arr.forEach(p=>p.sent=1);
-  }
-  const na=data.activity.filter(a=>!a.sent);
-  if(na.length){const {error}=await sb.from('shopping_activity').insert([...na].reverse().map(a=>({list_id:listId,actor_id:me.id,action:a.action,details:{item:a.item,actor:a.actor}})));if(error)throw error;na.forEach(a=>a.sent=1)}
-  dirty=false;persist();setSync('Sincronizado às '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),'Nuvem');
+ if(!listId||role==='viewer')return;const now=new Date().toISOString(),cur=new Map(data.items.map(i=>[i.id,i]));
+ const gone=[...snap.items.keys()].filter(id=>!cur.has(id));if(gone.length){const {error}=await sb.from('shopping_items').delete().in('id',gone);if(error)throw error;gone.forEach(id=>snap.items.delete(id))}
+ const nw=data.items.filter(i=>!snap.items.has(i.id));
+ if(nw.length){nw.forEach(i=>{if(!isUUID(i.id))i.id=uid()});const {data:pr,error}=await sb.from('shopping_products').upsert(nw.map(i=>({list_id:listId,name:i.name,category_id:cats[i.cat]||null})),{onConflict:'list_id,name'}).select('id,name');if(error)throw error;const pm=Object.fromEntries(pr.map(p=>[p.name,p.id]));nw.forEach(i=>i.productId=pm[i.name]||i.productId||null);const {error:e}=await sb.from('shopping_items').insert(nw.map(i=>({id:i.id,list_id:listId,product_id:i.productId,category_id:cats[i.cat]||null,name:i.name,is_checked:!!i.checked,added_by:me.id,checked_by:i.checked?me.id:null,checked_at:i.checked?now:null,created_at:now,updated_at:now})));if(e)throw e;nw.forEach(i=>snap.items.set(i.id,{checked:!!i.checked}))}
+ const on=[],off=[];data.items.forEach(i=>{const s=snap.items.get(i.id);if(s&&s.checked!==!!i.checked)(i.checked?on:off).push(i.id)});
+ if(on.length){const {error}=await sb.from('shopping_items').update({is_checked:true,checked_by:me.id,checked_at:now,updated_at:now}).in('id',on);if(error)throw error}if(off.length){const {error}=await sb.from('shopping_items').update({is_checked:false,checked_by:null,checked_at:null,updated_at:now}).in('id',off);if(error)throw error}[...on,...off].forEach(id=>snap.items.get(id).checked=on.includes(id));
+ const pending=data.prices.filter(p=>!p.sent),groups={};pending.forEach(p=>{const g=p.grp||(p.grp=p.date+'|'+norm(p.store));(groups[g]=groups[g]||[]).push(p)});
+ for(const [g,arr] of Object.entries(groups)){let pu=snap.pur[g];if(!pu){const {data:r,error}=await sb.from('shopping_purchases').insert({list_id:listId,store_name:arr[0].store||null,purchased_at:new Date(arr[0].date+'T12:00:00').toISOString(),total_amount:0,receipt_source:arr[0].ocr?'ocr':'manual',created_by:me.id}).select('id').single();if(error)throw error;pu=snap.pur[g]={id:r.id,total:0}}
+  const pm=await productIds(arr.map(p=>p.name));const rows=arr.map(p=>({purchase_id:pu.id,product_id:p.productId||pm[p.name]||null,product_name:p.name,quantity:p.qty||1,unit:p.unit||'un',unit_price:p.value,total_price:+(p.value*(p.qty||1)).toFixed(2)}));const {data:inserted,error}=await sb.from('shopping_purchase_items').insert(rows).select('id,product_id');if(error)throw error;arr.forEach((p,i)=>{p.sent=1;p.purchaseItemId=inserted?.[i]?.id||null;p.productId=inserted?.[i]?.product_id||rows[i].product_id});pu.total=+(pu.total+rows.reduce((s,r)=>s+r.total_price,0)).toFixed(2);const {error:e}=await sb.from('shopping_purchases').update({total_amount:pu.total}).eq('id',pu.id);if(e)throw e}
+ const na=data.activity.filter(a=>!a.sent);if(na.length){const {error}=await sb.from('shopping_activity').insert([...na].reverse().map(a=>({list_id:listId,actor_id:me.id,action:a.action,details:{item:a.item,actor:a.actor}})));if(error)throw error;na.forEach(a=>a.sent=1)}dirty=false;persist();setSync('Sincronizado às '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),'Nuvem');
 }
-const push=()=>(busy=busy.then(doPush).catch(e=>{setSync('Erro ao sincronizar: '+(e.message||e),'Erro');toast('Não sincronizou: '+(e.message||e))}));
-const origSave=window.save;
-window.save=function(){
-  origSave();if(!listId)return;
-  if(role==='viewer'){toast('Acesso somente leitura: alteração não enviada');busy=busy.then(()=>pull(listId));return}
-  dirty=true;setSync('Sincronizando…','Sincronizando');clearTimeout(timer);timer=setTimeout(push,600);
-};
-const oi=$('importData').onchange;
-$('importData').onchange=e=>{if(listId&&!confirm('Importar o backup substitui a lista da nuvem. Continuar?')){e.target.value='';return}oi(e)};
-const refresh=()=>{if(listId&&!dirty)busy=busy.then(()=>pull(listId)).then(()=>renderFamily()).catch(e=>setSync('Erro: '+e.message,'Erro'))};
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refresh()});
-$('syncNow').onclick=()=>{refresh();toast('Sincronizando…')};
+const push=()=>busy=busy.then(doPush).catch(e=>{setSync('Erro ao sincronizar: '+(e.message||e),'Erro');toast('Não sincronizou: '+(e.message||e))});
+const origSave=window.save;window.save=function(){origSave();if(!listId)return;if(role==='viewer'){toast('Acesso somente leitura: alteração não enviada');busy=busy.then(()=>pull(listId));return}dirty=true;setSync('Sincronizando…','Sincronizando');clearTimeout(timer);timer=setTimeout(push,600)};
+const oi=$('importData').onchange;$('importData').onchange=e=>{if(listId&&!confirm('Importar o backup substitui a lista da nuvem. Continuar?')){e.target.value='';return}oi(e)};
+const refresh=()=>{if(listId&&!dirty)busy=busy.then(()=>pull(listId)).then(renderFamily).catch(e=>setSync('Erro: '+e.message,'Erro'))};document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refresh()});$('syncNow').onclick=()=>{refresh();toast('Sincronizando…')};
+function renderFamily(){if(!listId)return;$('listSelect').innerHTML=lists.map(l=>`<option value="${l.id}" ${l.id===listId?'selected':''}>${esc(l.name)}</option>`).join('');const labels={owner:'dono',editor:'pode editar',viewer:'só leitura'};$('familyBox').innerHTML='<label>Participantes</label>'+members.map(x=>`<div class="item"><div class="name">${esc(x.invited_email||(x.user_id===me.id?'Você':'Participante'))}<small>${labels[x.role]||''}</small></div>${role==='owner'&&x.role!=='owner'?`<button class="small ghost" data-rm="${x.id}">✕</button>`:''}</div>`).join('')+(role==='owner'?'<div class="row" style="margin-top:10px"><input id="invEmail" type="email" placeholder="E-mail para convidar"><button class="small" id="invBtn">Convidar</button></div>':'');document.querySelectorAll('[data-rm]').forEach(b=>b.onclick=async()=>{if(!confirm('Remover este participante?'))return;const {error}=await sb.from('shopping_members').delete().eq('id',b.dataset.rm);if(error)return toast(error.message);await loadMembers();renderFamily()});$('invBtn')?.addEventListener('click',async()=>{const email=$('invEmail').value.trim().toLowerCase();if(!/^\S+@\S+\.\S+$/.test(email))return toast('E-mail inválido');const {error}=await sb.from('shopping_members').insert({list_id:listId,invited_email:email,role:'editor',invited_by:me.id});if(error)return toast(error.message);toast('Convite criado');await loadMembers();renderFamily()})}
+$('listSelect').onchange=e=>busy=busy.then(()=>pull(e.target.value)).then(renderFamily);
+async function afterLogin(user){me=user;$('authForm').hidden=true;$('authLogged').hidden=false;$('authWho').textContent=user.email;setSync('Conectando…','Conectando');try{const {data:pend}=await sb.from('shopping_members').select('id,invited_email').is('user_id',null);for(const p of (pend||[]).filter(x=>(x.invited_email||'').toLowerCase()===user.email.toLowerCase()))await sb.rpc('shopping_accept_invite',{p_member_id:p.id});await pull();renderFamily();const {data:a}=await sb.rpc('study_my_access');aiOk=!!(a&&a[0]&&a[0].r_ai);$('aiBox').hidden=!aiOk;$('aiDenied').hidden=aiOk;$('analyzeReceiptPhotos').disabled=!$('receiptPhotos').files.length||!aiOk;setSync('Sincronizado','Nuvem');auth('')}catch(e){setSync('Erro: '+(e.message||e),'Erro');auth('Erro ao carregar a lista: '+(e.message||e))}}
+function afterLogout(){me=listId=role=snap=null;aiOk=false;dirty=false;$('authForm').hidden=false;$('authLogged').hidden=true;$('aiBox').hidden=true;$('aiDenied').hidden=false;setSync('Modo local: os dados ficam só neste aparelho.','Modo local')}
+const cred=()=>({email:$('authEmail').value.trim(),password:$('authPass').value});$('btnLogin').onclick=async()=>{const {error}=await sb.auth.signInWithPassword(cred());auth(error?'Falha no login: '+error.message:'')};$('btnSignup').onclick=async()=>{const {data:d,error}=await sb.auth.signUp({...cred(),options:{emailRedirectTo:location.origin+location.pathname}});auth(error?'Falha no cadastro: '+error.message:d.session?'':'Conta criada. Confirme o e-mail enviado para concluir o acesso.')};$('googleLogin').onclick=async()=>{const {error}=await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin+location.pathname}});if(error)auth('Falha no login Google: '+error.message)};$('googleLogout').onclick=()=>sb.auth.signOut();sb.auth.onAuthStateChange((ev,s)=>setTimeout(()=>{if(s?.user&&me?.id!==s.user.id)afterLogin(s.user);else if(!s&&me)afterLogout()},0));
 
-/* ---------- família ---------- */
-function renderFamily(){
-  if(!listId)return;
-  $('listSelect').innerHTML=lists.map(l=>`<option value="${l.id}" ${l.id===listId?'selected':''}>${esc(l.name)}</option>`).join('');
-  const rl={owner:'dono',editor:'pode editar',viewer:'só leitura'};
-  $('familyBox').innerHTML='<label>Participantes</label>'+members.map(x=>`<div class="item"><div class="name">${esc(x.invited_email||(x.user_id===me.id?'Você':'Dono da lista'))}<small>${rl[x.role]||'participante'}</small></div>${x.role!=='owner'&&x.user_id!==me.id?`<button class="small ghost" data-rm="${x.id}" title="Remover">✕</button>`:''}</div>`).join('')+
-    (role==='owner'?`<div class="row" style="margin-top:10px"><input id="invEmail" type="email" placeholder="E-mail para convidar"><button class="small" id="invBtn">Convidar</button></div>`:'');
-  document.querySelectorAll('[data-rm]').forEach(b=>b.onclick=async()=>{
-    if(!confirm('Remover este participante?'))return;
-    const {error}=await sb.from('shopping_members').delete().eq('id',b.dataset.rm);
-    if(error)return toast(error.message);await loadMembers();renderFamily();
-  });
-  $('invBtn')?.addEventListener('click',async()=>{
-    const email=$('invEmail').value.trim().toLowerCase();if(!/^\S+@\S+\.\S+$/.test(email))return toast('E-mail inválido');
-    const {error}=await sb.from('shopping_members').insert({list_id:listId,invited_email:email,role:'editor',invited_by:me.id});
-    if(error)return toast(error.code==='23505'?'Essa pessoa já foi convidada':error.message);
-    toast('Convite criado');await loadMembers();renderFamily();
-  });
-}
-$('listSelect').onchange=e=>{busy=busy.then(()=>pull(e.target.value)).then(renderFamily)};
-
-/* ---------- login ---------- */
-async function afterLogin(user){
-  me=user;$('authForm').hidden=true;$('authLogged').hidden=false;$('authWho').textContent=user.email;setSync('Conectando…','Conectando');
-  try{
-    const {data:pend}=await sb.from('shopping_members').select('id,invited_email').is('user_id',null);
-    for(const p of (pend||[]).filter(x=>(x.invited_email||'').toLowerCase()===user.email.toLowerCase())){
-      const {error}=await sb.rpc('shopping_accept_invite',{p_member_id:p.id});if(!error)toast('Convite aceito: você entrou em uma lista');
-    }
-    await pull();renderFamily();
-    const {data:a}=await sb.rpc('study_my_access');aiOk=!!(a&&a[0]&&a[0].r_ai);
-    $('aiBox').hidden=!aiOk;$('aiDenied').hidden=aiOk;
-    setSync('Sincronizado','Nuvem');auth('');
-  }catch(e){setSync('Erro: '+(e.message||e),'Erro');auth('Erro ao carregar a lista: '+(e.message||e))}
-}
-function afterLogout(){
-  me=listId=role=snap=null;aiOk=false;dirty=false;$('authForm').hidden=false;$('authLogged').hidden=true;
-  $('aiBox').hidden=true;$('aiDenied').hidden=false;setSync('Modo local: os dados ficam só neste aparelho.','Modo local');
-}
-const cred=()=>({email:$('authEmail').value.trim(),password:$('authPass').value});
-$('btnLogin').onclick=async()=>{const {error}=await sb.auth.signInWithPassword(cred());auth(error?'Falha no login: '+error.message:'')};
-$('btnSignup').onclick=async()=>{
-  const {data:d,error}=await sb.auth.signUp({...cred(),options:{emailRedirectTo:location.origin+location.pathname}});
-  auth(error?'Falha no cadastro: '+error.message:d.session?'':'Conta criada. Confirme o e-mail enviado para concluir o acesso.');
-};
-$('googleLogin').onclick=async()=>{const {error}=await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin+location.pathname}});if(error)auth('Falha no login Google: '+error.message)};
-$('googleLogout').onclick=()=>sb.auth.signOut();
-sb.auth.onAuthStateChange((ev,s)=>setTimeout(()=>{
-  if(s?.user&&me?.id!==s.user.id)afterLogin(s.user);
-  else if(!s&&me)afterLogout();
-},0));
-
-/* ---------- IA: notas fiscais (modo "nota" da edge function dynamic-service) ---------- */
-const MAX_AI_IMAGE_EDGE=1600;
-const AI_ANALYZE_TIMEOUT_MS=120000;
-const shrink=file=>new Promise((ok,no)=>{
-  const reader=new FileReader();
-  reader.onload=()=>{
-    const img=new Image();
-    img.onload=()=>{
-      const scale=Math.min(1,MAX_AI_IMAGE_EDGE/Math.max(img.width,img.height));
-      const canvas=document.createElement('canvas');
-      canvas.width=Math.max(1,Math.round(img.width*scale));
-      canvas.height=Math.max(1,Math.round(img.height*scale));
-      const ctx=canvas.getContext('2d',{alpha:false});
-      ctx.fillStyle='#fff';
-      ctx.fillRect(0,0,canvas.width,canvas.height);
-      ctx.drawImage(img,0,0,canvas.width,canvas.height);
-      const dataUrl=canvas.toDataURL('image/jpeg',0.82);
-      ok((dataUrl.split(',')[1]||'').trim());
-    };
-    img.onerror=()=>no(new Error('Imagem inválida'));
-    img.src=reader.result;
-  };
-  reader.onerror=()=>no(new Error('Não foi possível ler a imagem'));
-  reader.readAsDataURL(file);
-});
-const SCHEMA={type:'OBJECT',properties:{loja:{type:'STRING'},data:{type:'STRING'},itens:{type:'ARRAY',items:{type:'OBJECT',properties:{nome:{type:'STRING'},quantidade:{type:'NUMBER'},unidade:{type:'STRING'},preco_unitario:{type:'NUMBER'},total:{type:'NUMBER'}},required:['nome','quantidade','unidade','preco_unitario']}}},required:['loja','data','itens']};
-const SYSTEM='Você extrai dados de fotos de notas fiscais e cupons de supermercado do Brasil. Liste apenas itens legíveis, com nome de produto claro (sem códigos), quantidade, unidade (un, kg, g, L, ml), preço unitário e total em reais como número. A data vai no formato AAAA-MM-DD e a loja no nome do mercado. Se algo não estiver legível, omita; nunca invente itens.';
-let ctl=null;
-$('receiptPhotos').addEventListener('change',e=>{
-  const files=[...e.target.files].filter(f=>f.type.startsWith('image/')),box=$('receiptPhotoPreview');box.innerHTML='';
-  files.forEach(f=>{const im=document.createElement('img');im.className='receipt-preview';im.alt='Prévia da nota';im.src=URL.createObjectURL(f);box.append(im)});
-  $('analyzeReceiptPhotos').disabled=!files.length||!aiOk;
-  $('receiptAiStatus').textContent=files.length?files.length+' foto(s) selecionada(s). A imagem é enviada só para a análise e não é guardada.':'';
-});
-$('cancelReceiptAI').onclick=()=>ctl?.abort();
-$('analyzeReceiptPhotos').onclick=async()=>{
-  if(!aiOk)return;const files=[...$('receiptPhotos').files].filter(f=>f.type.startsWith('image/')),st=$('receiptAiStatus');
-  $('analyzeReceiptPhotos').disabled=true;$('cancelReceiptAI').hidden=false;notas=[];
-  for(const [n,f] of files.entries()){
-    const t0=Date.now(),tick=setInterval(()=>st.textContent=`Analisando foto ${n+1} de ${files.length}… ${Math.round((Date.now()-t0)/1000)} s`,500);
-    ctl=new AbortController();
-    const to=setTimeout(()=>ctl.abort(),AI_ANALYZE_TIMEOUT_MS);
-    let ok=true,err=null,j={};
-    try{
-      const {data:{session}}=await sb.auth.getSession();
-      const imageBase64=await shrink(f);
-      if(!imageBase64)throw new Error('Não foi possível preparar a imagem para análise.');
-      const r=await fetch(SB_URL+'/functions/v1/dynamic-service',{method:'POST',signal:ctl.signal,headers:{'Content-Type':'application/json',apikey:SB_KEY,Authorization:'Bearer '+session.access_token},body:JSON.stringify({modo:'nota',systemInstruction:{parts:[{text:SYSTEM}]},contents:[{role:'user',parts:[{text:'Extraia os dados desta nota fiscal.'},{inlineData:{mimeType:'image/jpeg',data:imageBase64}}]}],generationConfig:{responseSchema:SCHEMA}})});
-      j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||'HTTP '+r.status);
-      const txt=(j.candidates?.[0]?.content?.parts||[]).map(p=>p.text||'').join('').replace(/```json|```/g,'');
-      const o=JSON.parse(txt);notas.push({loja:o.loja||'',data:/^\d{4}-\d{2}-\d{2}$/.test(o.data)?o.data:ymd(),itens:(o.itens||[]).filter(i=>i.nome&&Number(i.preco_unitario)>0)});
-    }catch(e){ok=false;err=e.name==='AbortError'?'Cancelado ou demorou mais de '+Math.round(AI_ANALYZE_TIMEOUT_MS/1000)+' s':e.message;st.textContent='Foto '+(n+1)+': '+err}
-    finally{clearInterval(tick);clearTimeout(to)}
-    const u=j.usageMetadata||{};
-    sb.rpc('study_log_ai',{p_modo:'compras_nota',p_model:j.modelVersion||'',p_prompt:u.promptTokenCount||0,p_output:u.candidatesTokenCount||0,p_total:u.totalTokenCount||0,p_estimated:!u.totalTokenCount,p_ok:ok,p_error:err||''}).then(()=>{}).catch(()=>{});
-    if(!ok&&err.startsWith('Cancelado'))break;
-  }
-  $('cancelReceiptAI').hidden=true;$('analyzeReceiptPhotos').disabled=false;
-  if(notas.length){st.textContent='Revise os dados abaixo antes de salvar no histórico.';renderNotas()}
-};
-function renderNotas(){
-  $('receiptExtracted').innerHTML=notas.map((n,k)=>`<div class="panel" style="box-shadow:none;margin:10px 0 0"><div class="formgrid"><div><label>Loja</label><input data-n="${k}" data-f="loja" value="${esc(n.loja)}" style="width:100%"></div><div><label>Data</label><input type="date" data-n="${k}" data-f="data" value="${n.data}" style="width:100%"></div></div><div style="overflow-x:auto"><table><tr><th></th><th>Produto</th><th>Qtd</th><th>Preço un.</th></tr>${n.itens.map((i,m)=>`<tr><td><input type="checkbox" checked data-n="${k}" data-i="${m}" data-f="on"></td><td><input data-n="${k}" data-i="${m}" data-f="nome" value="${esc(i.nome)}" style="min-width:150px"></td><td><input type="number" step="any" data-n="${k}" data-i="${m}" data-f="quantidade" value="${Number(i.quantidade)||1}" style="width:64px"></td><td><input type="number" step="0.01" data-n="${k}" data-i="${m}" data-f="preco_unitario" value="${Number(i.preco_unitario)||0}" style="width:84px"></td></tr>`).join('')}</table></div></div>`).join('')+`<button class="primary" id="saveNotas" style="width:100%;margin-top:12px">Salvar notas no histórico</button>`;
-  $('saveNotas').onclick=saveNotas;
-}
-function saveNotas(){
-  const val=(k,f,m)=>document.querySelector(`[data-n="${k}"][data-f="${f}"]${m===undefined?'':`[data-i="${m}"]`}`);
-  let total=0;
-  notas.forEach((n,k)=>{
-    const loja=val(k,'loja').value.trim(),dt=val(k,'data').value||ymd(),grp='ocr-'+uid();let c=0;
-    n.itens.forEach((_,m)=>{
-      if(!val(k,'on',m).checked)return;
-      const name=val(k,'nome',m).value.trim(),v=Number(val(k,'preco_unitario',m).value),q=Number(val(k,'quantidade',m).value)||1;
-      if(!name||!(v>0))return;
-      if(!data.items.some(i=>norm(i.name)===norm(name)))data.items.push({id:uid(),name,cat:'Outros',checked:true});
-      data.prices.push({name,value:v,qty:q,date:dt,store:loja,ocr:true,grp});c++;
-    });
-    if(c){logActivity('Importou nota fiscal',(loja||'Nota')+' · '+c+' itens');total+=c}
-  });
-  save();notas=[];$('receiptExtracted').innerHTML='';$('receiptPhotos').value='';$('receiptPhotoPreview').innerHTML='';$('receiptAiStatus').textContent='';
-  toast(total+' item(ns) salvos no histórico');
-}
+/* IA de notas: imagem reduzida, timeout de 120s e recuperação simples de JSON inválido. */
+const MAX_EDGE=1600,AI_TIMEOUT=120000;
+const shrink=file=>new Promise((resolve,reject)=>{const reader=new FileReader();reader.onerror=()=>reject(new Error('Não foi possível ler a imagem'));reader.onload=()=>{const img=new Image();img.onerror=()=>reject(new Error('Imagem inválida'));img.onload=()=>{const k=Math.min(1,MAX_EDGE/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*k));c.height=Math.max(1,Math.round(img.height*k));const x=c.getContext('2d',{alpha:false});x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);resolve(c.toDataURL('image/jpeg',.82).split(',')[1])};img.src=reader.result};reader.readAsDataURL(file)});
+const SCHEMA={type:'OBJECT',properties:{loja:{type:'STRING'},data:{type:'STRING'},itens:{type:'ARRAY',items:{type:'OBJECT',properties:{nome:{type:'STRING'},quantidade:{type:'NUMBER'},unidade:{type:'STRING'},preco_unitario:{type:'NUMBER'},total:{type:'NUMBER'}},required:['nome','preco_unitario']}}},required:['itens']};
+const SYSTEM='Extraia os dados legíveis de uma nota fiscal de supermercado brasileira. Responda somente JSON válido conforme o esquema, sem Markdown, comentários ou texto extra. Não invente dados. loja é o nome do supermercado; data é AAAA-MM-DD; itens contém nome, quantidade, unidade, preco_unitario e total como números.';
+function parseModelJson(text){let s=String(text||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'').replace(/[“”]/g,'"').replace(/[‘’]/g,"'");const a=s.indexOf('{'),b=s.lastIndexOf('}');if(a>=0&&b>a)s=s.slice(a,b+1);try{return JSON.parse(s)}catch{const fixed=s.replace(/,\s*([}\]])/g,'$1').replace(/\u0000/g,'');try{return JSON.parse(fixed)}catch{throw new Error('A IA retornou dados em formato inválido. Tente novamente com uma foto mais nítida e enquadrada.')}}}
+async function callAI(file,token){const image=await shrink(file);const body={modo:'nota',systemInstruction:{parts:[{text:SYSTEM}]},contents:[{role:'user',parts:[{text:'Extraia os dados desta nota fiscal em JSON válido.'},{inlineData:{mimeType:'image/jpeg',data:image}}]}],generationConfig:{responseMimeType:'application/json',responseSchema:SCHEMA,temperature:0}};const request=async payload=>{const r=await fetch(SB_URL+'/functions/v1/dynamic-service',{method:'POST',signal:ctl.signal,headers:{'Content-Type':'application/json',apikey:SB_KEY,Authorization:'Bearer '+token},body:JSON.stringify(payload)});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||'Erro HTTP '+r.status);return j};let j=await request(body);const read=resp=>{const text=(resp.candidates?.[0]?.content?.parts||[]).map(p=>p.text||'').join('');return parseModelJson(text)};try{return {value:read(j),raw:j}}catch{body.contents[0].parts[0].text='Releia a nota e responda somente com um objeto JSON sintaticamente válido. Sem Markdown, sem comentários, sem vírgulas finais.';j=await request(body);try{return {value:read(j),raw:j}}catch{throw new Error('A IA não conseguiu produzir um JSON válido. Tente novamente com uma foto mais nítida e enquadrada.')}}}
+function normalizeName(s){return norm(s).replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim()}
+function similarity(a,b){a=normalizeName(a);b=normalizeName(b);if(!a||!b)return 0;if(a===b)return 1;if(a.includes(b)||b.includes(a))return Math.min(a.length,b.length)/Math.max(a.length,b.length)*.92;const row=Array.from({length:b.length+1},(_,i)=>i);for(let i=1;i<=a.length;i++){let prev=row[0];row[0]=i;for(let j=1;j<=b.length;j++){const old=row[j];row[j]=Math.min(row[j]+1,row[j-1]+1,prev+(a[i-1]===b[j-1]?0:1));prev=old}}return 1-row[b.length]/Math.max(a.length,b.length)}
+function candidates(name){return (data.items||[]).map(item=>({item,score:similarity(name,item.name)})).sort((a,b)=>b.score-a.score).slice(0,5)}
+$('receiptPhotos').addEventListener('change',e=>{const files=[...e.target.files].filter(f=>f.type.startsWith('image/')),box=$('receiptPhotoPreview');box.innerHTML='';files.forEach(f=>{const im=document.createElement('img');im.className='receipt-preview';im.alt='Prévia da nota';im.src=URL.createObjectURL(f);box.append(im)});$('analyzeReceiptPhotos').disabled=!files.length||!aiOk;$('receiptAiStatus').textContent=files.length?files.length+' foto(s) selecionada(s). A imagem é enviada temporariamente para análise.':''});$('cancelReceiptAI').onclick=()=>ctl?.abort();
+$('analyzeReceiptPhotos').onclick=async()=>{if(!aiOk)return;const files=[...$('receiptPhotos').files].filter(f=>f.type.startsWith('image/')),st=$('receiptAiStatus');$('analyzeReceiptPhotos').disabled=true;$('cancelReceiptAI').hidden=false;notas=[];
+ for(const [n,f] of files.entries()){const t0=Date.now(),tick=setInterval(()=>st.textContent=`Analisando foto ${n+1} de ${files.length}… ${Math.round((Date.now()-t0)/1000)} s`,500);ctl=new AbortController();const timeout=setTimeout(()=>ctl.abort(),AI_TIMEOUT);let ok=true,err='',j={};try{const {data:{session}}=await sb.auth.getSession();if(!session?.access_token)throw new Error('Sua sessão expirou. Entre novamente e tente de novo.');const result=await callAI(f,session.access_token);j=result.raw;const o=result.value;notas.push({loja:o.loja||'',data:/^\d{4}-\d{2}-\d{2}$/.test(o.data)?o.data:ymd(),itens:(o.itens||[]).filter(i=>i.nome&&Number(i.preco_unitario)>0).map(i=>({...i,quantidade:Number(i.quantidade)||1}))})}catch(e){ok=false;err=e.name==='AbortError'?'A análise foi cancelada ou excedeu 120 segundos. Tente uma foto menor ou mais nítida.':e.message;st.textContent='Foto '+(n+1)+': '+err}finally{clearInterval(tick);clearTimeout(timeout)}const u=j.usageMetadata||{};sb.rpc('study_log_ai',{p_modo:'compras_nota',p_model:j.modelVersion||'',p_prompt:u.promptTokenCount||0,p_output:u.candidatesTokenCount||0,p_total:u.totalTokenCount||0,p_estimated:!u.totalTokenCount,p_ok:ok,p_error:err,p_ms:Date.now()-t0}).then(()=>{}).catch(()=>{});if(!ok&&err.includes('cancelada'))break}
+ $('cancelReceiptAI').hidden=true;$('analyzeReceiptPhotos').disabled=false;if(notas.length){st.textContent='Revise o supermercado, a data e a associação de cada produto antes de salvar.';renderNotas()}else if(!st.textContent)st.textContent='Nenhum item legível foi identificado.'};
+function renderNotas(){$('receiptExtracted').innerHTML=notas.map((n,k)=>`<div class="panel" style="box-shadow:none;margin:10px 0 0"><div class="formgrid"><div><label>Supermercado / loja</label><input data-n="${k}" data-f="loja" value="${esc(n.loja)}" placeholder="Nome do supermercado" style="width:100%"></div><div><label>Data</label><input type="date" data-n="${k}" data-f="data" value="${n.data}" style="width:100%"></div></div><div style="overflow-x:auto"><table><tr><th></th><th>Produto da nota</th><th>Qtd</th><th>Preço un.</th><th>Associar a item existente / criar</th></tr>${n.itens.map((i,m)=>{const matches=candidates(i.nome),auto=matches[0]?.score>=.94?matches[0].item.id:'';return `<tr><td><input type="checkbox" checked data-n="${k}" data-i="${m}" data-f="on"></td><td><input data-n="${k}" data-i="${m}" data-f="nome" value="${esc(i.nome)}" style="min-width:150px"></td><td><input type="number" step="any" data-n="${k}" data-i="${m}" data-f="quantidade" value="${i.quantidade||1}" style="width:64px"></td><td><input type="number" step=".01" data-n="${k}" data-i="${m}" data-f="preco_unitario" value="${Number(i.preco_unitario)||0}" style="width:84px"></td><td><select data-n="${k}" data-i="${m}" data-f="match" style="min-width:200px"><option value="">${matches.length?'Confirme a associação…':'Escolha: criar novo item'}</option>${matches.map(x=>`<option value="${esc(String(x.item.id))}" ${String(x.item.id)===String(auto)?'selected':''}>${esc(x.item.name)} · ${Math.round(x.score*100)}%</option>`).join('')}<option value="__new__">＋ Criar novo item: “${esc(i.nome)}”</option></select></td></tr>`}).join('')}</table></div></div>`).join('')+`<button class="primary" id="saveNotas" style="width:100%;margin-top:12px">Salvar notas no histórico</button>`;$('saveNotas').onclick=saveNotas}
+function saveNotas(){const val=(k,f,m)=>document.querySelector(`[data-n="${k}"][data-f="${f}"]${m===undefined?'':`[data-i="${m}"]`}`);for(let k=0;k<notas.length;k++)for(let m=0;m<notas[k].itens.length;m++)if(val(k,'on',m)?.checked&&!val(k,'match',m)?.value){toast('Confirme a associação de cada item marcado ou escolha criar novo item.');val(k,'match',m)?.focus();return}let total=0;notas.forEach((n,k)=>{const store=val(k,'loja').value.trim(),date=val(k,'data').value||ymd(),grp='ocr-'+uid();let count=0;n.itens.forEach((_,m)=>{if(!val(k,'on',m).checked)return;const receiptName=val(k,'nome',m).value.trim(),price=Number(val(k,'preco_unitario',m).value),qty=Number(val(k,'quantidade',m).value)||1,choice=val(k,'match',m).value;if(!receiptName||!(price>0))return;let item=choice==='__new__'?null:data.items.find(x=>String(x.id)===choice);if(!item){item={id:uid(),name:receiptName,cat:'Outros',checked:true,productId:null};data.items.push(item)}data.prices.push({name:item.name,receiptName,value:price,qty,date,store,ocr:true,grp,productId:item.productId||null,matchedItemId:item.id});count++});if(count){logActivity('Importou nota fiscal',(store||'Nota')+' · '+count+' itens');total+=count}});save();notas=[];$('receiptExtracted').innerHTML='';$('receiptPhotos').value='';$('receiptPhotoPreview').innerHTML='';$('receiptAiStatus').textContent='';toast(total+' item(ns) salvos no histórico')}
+async function setHistoryAssociation(price,itemId){const item=data.items.find(x=>String(x.id)===String(itemId));if(!item)return;const old={name:price.name,productId:price.productId,matchedItemId:price.matchedItemId};try{let productId=item.productId;if(listId&&role!=='viewer'){if(!productId){const ids=await productIds([item.name]);productId=ids[item.name];item.productId=productId}if(price.purchaseItemId){const {error}=await sb.from('shopping_purchase_items').update({product_id:productId,product_name:item.name}).eq('id',price.purchaseItemId);if(error)throw error}}price.name=item.name;price.productId=productId||null;price.matchedItemId=item.id;persist();render();toast('Associação atualizada para '+item.name)}catch(e){Object.assign(price,old);toast('Não foi possível atualizar a associação: '+e.message);render()}}
+function addAssociationControls(){const table=$('history')?.querySelector('table');if(!table)return;const rows=[...table.querySelectorAll('tr')].slice(1),recent=[...(data.prices||[])].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,8);rows.forEach((row,i)=>{const price=recent[i],cell=row.querySelector('td');if(!price||!cell||cell.querySelector('[data-history-association]'))return;const select=document.createElement('select');select.dataset.historyAssociation='1';select.setAttribute('aria-label','Revisar associação do produto');select.style.cssText='display:block;max-width:220px;margin-top:5px;font-size:12px;padding:5px';select.innerHTML='<option value="">Revisar associação…</option>'+data.items.map(item=>`<option value="${esc(String(item.id))}" ${String(item.id)===String(price.matchedItemId||'')?'selected':''}>${esc(item.name)}</option>`).join('')+'<option value="__new__">Criar item com nome da nota</option>';select.onchange=()=>{if(select.value==='__new__'){const name=prompt('Nome do novo item:',price.receiptName||price.name);if(!name?.trim()){select.value='';return}const item={id:uid(),name:name.trim(),cat:'Outros',checked:true};data.items.push(item);setHistoryAssociation(price,item.id)}else if(select.value)setHistoryAssociation(price,select.value)};cell.append(select)})}
+const previousRender=window.render;if(typeof previousRender==='function')window.render=function(...args){const result=previousRender.apply(this,args);addAssociationControls();return result};
+const historyOriginal=$('history').innerHTML;const renderHistoryWithStores=window.render;if(typeof renderHistoryWithStores==='function')window.render=function(...args){const result=renderHistoryWithStores.apply(this,args);const table=$('history').querySelector('table');if(table){const header=table.querySelector('tr');if(header&&!header.dataset.store){const th=document.createElement('th');th.textContent='Supermercado';header.insertBefore(th,header.children[2]||null);header.dataset.store='1';const rows=[...table.querySelectorAll('tr')].slice(1),recent=[...(data.prices||[])].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,8);rows.forEach((row,i)=>{const td=document.createElement('td');td.textContent=recent[i]?.store||'—';row.insertBefore(td,row.children[2]||null)})}}return result};
+$('analyze').addEventListener('click',()=>setTimeout(()=>{const name=$('analyzeSearch').value.trim();const latest=[...(data.prices||[])].filter(p=>norm(p.name)===norm(name)||norm(p.receiptName)===norm(name)).sort((a,b)=>b.date.localeCompare(a.date))[0];if(!latest)return;const box=$('analysis');if(box&&!box.querySelector('[data-store-info]')){const line=document.createElement('p');line.dataset.storeInfo='1';line.textContent='Supermercado: '+(latest.store||'não informado');box.append(line)}},0));
+const info=document.createElement('p');info.className='note';info.textContent='A análise apenas prepara uma prévia. Revise supermercado, data e associação dos produtos. Os dados entram no histórico e sincronizam com a nuvem somente após clicar em “Salvar notas no histórico”.';$('receiptExtracted').before(info);document.title=document.title.replace(/V\d+/,'V8');
 afterLogout();
 })();
-
