@@ -1,0 +1,8 @@
+MINHA LISTA DE COMPRAS V6
+- Corrigido o mapeamento dos painéis: cada módulo agora recebe seu elemento correto.
+- A tela Lista recebe a lista de produtos e o resumo de quatro indicadores, sem substituir um pelo outro.
+- Preços contém formulário, análise e histórico em painéis separados.
+- Previsão, Família, Atividade e Notas fiscais recebem seus próprios conteúdos.
+- Os dados exibidos dependem do conteúdo salvo no navegador. Histórico e previsão permanecem vazios até existirem compras/preços registrados.
+- A sincronização Supabase e a análise OCR/IA continuam pendentes de integração de backend.
+Para GitHub Pages: substituir o index.html pela versão deste pacote.
