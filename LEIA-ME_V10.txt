@@ -1,15 +1,15 @@
 MINHA LISTA DE COMPRAS — V10
 
-Este recurso agora está integrado ao index.html (não é apenas um arquivo complementar).
+Corrigido o carregamento das evoluções: o index.html já inclui compras-supabase.js; esse arquivo agora inicializa, em sequência, o sincronizador do app e compras-lista-v9.js. Assim, os recursos da lista não ficam desconectados do HTML.
 
 Na tela Lista de compras:
-- Categorias recolhíveis; por padrão, abrem as que têm itens desmarcados. Você pode expandir/recolher todas ou abrir/fechar uma categoria. A preferência fica salva no navegador.
-- Ação “Marcar todos” para marcar todos os itens pendentes como comprados.
-- Edição de nome do item diretamente na lista.
-- Campo “Estou em” para selecionar/informar o supermercado atual.
-- Cada produto mostra o último preço e supermercado registrado, menor preço histórico e comparação com o supermercado selecionado (quando há dados).
-- Filtro por loja para mostrar itens com preço registrado naquela loja.
+- Categorias recolhíveis; na primeira visualização ficam abertas as que têm itens pendentes. Há botões Expandir tudo e Recolher tudo; a preferência é salva neste navegador.
+- Marcar todos os itens pendentes.
+- Editar o nome do item diretamente na lista.
+- Informar o supermercado atual.
+- Ver, por item, o último preço, loja e data, o menor preço já registrado e a comparação com a loja selecionada.
+- Filtrar a lista por supermercado com base nos preços do histórico.
 
-A comparação usa o histórico cadastrado no app; não consulta preços atuais dos supermercados. O campo de supermercado e as categorias abertas/fechadas são preferências locais do navegador.
+A comparação usa somente preços registrados no app e não consulta preços atuais de lojas. O campo de supermercado, o filtro e o estado das categorias ficam neste navegador.
 
-Implantação: o index.html carrega compras-lista-v9.js depois de compras-supabase.js. Publique os três arquivos na mesma pasta e faça uma recarga forçada (Ctrl+F5 ou equivalente). Se o site estiver hospedado em outra pasta/URL, confirme que ambos os arquivos JS estão no mesmo diretório de index.html.
+Se a tela ainda servir uma versão em cache, faça uma recarga forçada (Ctrl+F5 ou equivalente). O recurso precisa que compras-supabase.js, compras-lista-v9.js e index.html estejam publicados juntos na pasta raiz do site. O sincronizador original é carregado a partir do commit estável cda3a65a73ae487a7690aeb6a050c1c970152031 do repositório, para preservar login e sincronização existentes.
