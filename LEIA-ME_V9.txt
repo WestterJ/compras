@@ -1,0 +1,15 @@
+MINHA LISTA DE COMPRAS — V9
+
+Este complemento adiciona melhorias à tela Lista de compras:
+- Categorias recolhíveis. Na primeira exibição, categorias com itens pendentes ficam abertas e as demais fechadas. A escolha manual é guardada neste navegador.
+- Botão para marcar todos os itens desmarcados como comprados.
+- Edição do nome do item diretamente na lista.
+- Campo para informar o supermercado atual e comparar os preços registrados do item: última compra, menor preço histórico e último/menor preço no supermercado selecionado.
+
+INSTALAÇÃO
+1. Mantenha compras-lista-v9.js na mesma pasta que index.html e compras-supabase.js.
+2. No index.html, imediatamente depois de <script src="compras-supabase.js"></script>, adicione:
+   <script src="compras-lista-v9.js"></script>
+3. Publique os arquivos e recarregue a página. O complemento funciona sem alteração no banco.
+
+A comparação usa somente os preços registrados no próprio app; não consulta preços atuais dos supermercados. O campo de supermercado atual fica salvo localmente neste navegador. O código de edição atualiza o nome em shopping_items se houver sessão/permissão para a alteração.
