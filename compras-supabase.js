@@ -1,6 +1,6 @@
 /* Minha Lista de Compras V7 — Supabase (projeto "Bases"): login, sincronização, família e IA de notas.
    Sem login o app segue em modo local (localStorage). A chave abaixo é a publishable (pública); nunca use a service_role. */
-(()=>{
+(() => {
 const SB_URL='https://ytsabhbkywymtevkeokg.supabase.co',SB_KEY='sb_publishable_cyIolmmdF5zKN0rAOJQOXg_ECcSq7z6';
 const $=id=>document.getElementById(id);
 const sb=window.supabase?.createClient(SB_URL,SB_KEY);
@@ -44,7 +44,7 @@ async function pull(wanted){
   await loadMembers();
   const ld=d=>{const x=new Date(d);return new Date(x-x.getTimezoneOffset()*6e4).toISOString().slice(0,10)};
   data.items=it.data.map(r=>({id:r.id,name:r.name,cat:cn[r.category_id]||'Outros',checked:r.is_checked}));
-  data.prices=pu.data.flatMap(p=>p.shopping_purchase_items.map(i=>({name:i.product_name,value:Number(i.unit_price??i.total_price),qty:Number(i.quantity)||1,unit:i.unit,date:ld(p.purchased_at),store:p.store_name||'',grp:p.id,sent:1})));
+  data.prices=pu.data.flatMap(p=>p.shopping_purchase_items.map(i=>({name:i.product_name,value:Number(i.unit_price??i.total_price),qty:Number(i.quantity)||1,unit:i.unit,date:ld(p.purchased_at),store:p.store_name||'',grp:p.id, sent:1})));
   data.activity=ac.data.map(a=>({action:a.action,item:a.details?.item||'',actor:a.details?.actor||'Alguém',at:a.created_at,sent:1}));
   data.profile.listName=lists.find(l=>l.id===listId).name;
   snap={items:new Map(data.items.map(i=>[i.id,{checked:!!i.checked}])),pur:Object.fromEntries(pu.data.map(p=>[p.id,{id:p.id,total:Number(p.total_amount)||0}]))};
@@ -64,7 +64,7 @@ async function doPush(){
     nw.forEach(i=>{if(!isUUID(i.id))i.id=uid()});
     const {data:pr,error}=await sb.from('shopping_products').upsert(nw.map(i=>({list_id:listId,name:i.name,category_id:cats[i.cat]||null})),{onConflict:'list_id,name'}).select('id,name');
     if(error)throw error;const pm=Object.fromEntries(pr.map(p=>[p.name,p.id]));
-    const {error:e2}=await sb.from('shopping_items').insert(nw.map(i=>({id:i.id,list_id:listId,product_id:pm[i.name],category_id:cats[i.cat]||null,name:i.name,is_checked:!!i.checked,added_by:me.id,checked_by:i.checked?me.id:null,checked_at:i.checked?now:null})));
+    const {error:e2}=await sb.from('shopping_items').insert(nw.map(i=>({id:i.id,list_id:listId,product_id:pm[i.name],category_id:cats[i.cat]||null,name:i.name,is_checked:!!i.checked,added_by:me.id,checked_by:i.checked?me.id:null,checked_at:i.checked?now:null,created_at:now,updated_at:now})));
     if(e2)throw e2;nw.forEach(i=>snap.items.set(i.id,{checked:!!i.checked}));
   }
   const on=[],off=[];
@@ -109,7 +109,8 @@ function renderFamily(){
   if(!listId)return;
   $('listSelect').innerHTML=lists.map(l=>`<option value="${l.id}" ${l.id===listId?'selected':''}>${esc(l.name)}</option>`).join('');
   const rl={owner:'dono',editor:'pode editar',viewer:'só leitura'};
-  $('familyBox').innerHTML='<label>Participantes</label>'+members.map(x=>`<div class="item"><div class="name">${esc(x.invited_email||(x.user_id===me.id?'Você':'Dono da lista'))}<small>${rl[x.role]}${x.user_id?'':' · convite pendente'}</small></div>${role==='owner'&&x.role!=='owner'?`<button class="small ghost" data-rm="${x.id}" title="Remover">×</button>`:''}</div>`).join('')+(role==='owner'?'<div class="row" style="margin-top:8px"><input id="invEmail" type="email" placeholder="E-mail de quem vai participar"><button class="small" id="invBtn">Convidar</button></div><p class="note">A pessoa entra com esse mesmo e-mail e o acesso é liberado automaticamente.</p>':'');
+  $('familyBox').innerHTML='<label>Participantes</label>'+members.map(x=>`<div class="item"><div class="name">${esc(x.invited_email||(x.user_id===me.id?'Você':'Dono da lista'))}<small>${rl[x.role]||'participante'}</small></div>${x.role!=='owner'&&x.user_id!==me.id?`<button class="small ghost" data-rm="${x.id}" title="Remover">✕</button>`:''}</div>`).join('')+
+    (role==='owner'?`<div class="row" style="margin-top:10px"><input id="invEmail" type="email" placeholder="E-mail para convidar"><button class="small" id="invBtn">Convidar</button></div>`:'');
   document.querySelectorAll('[data-rm]').forEach(b=>b.onclick=async()=>{
     if(!confirm('Remover este participante?'))return;
     const {error}=await sb.from('shopping_members').delete().eq('id',b.dataset.rm);
@@ -156,9 +157,32 @@ sb.auth.onAuthStateChange((ev,s)=>setTimeout(()=>{
 },0));
 
 /* ---------- IA: notas fiscais (modo "nota" da edge function dynamic-service) ---------- */
-const shrink=f=>new Promise((ok,no)=>{const im=new Image();im.onload=()=>{const k=Math.min(1,1600/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);ok(c.toDataURL('image/jpeg',.82).split(',')[1])};im.onerror=()=>no(new Error('Imagem inválida'));im.src=URL.createObjectURL(f)});
-const SCHEMA={type:'OBJECT',properties:{loja:{type:'STRING'},data:{type:'STRING'},itens:{type:'ARRAY',items:{type:'OBJECT',properties:{nome:{type:'STRING'},quantidade:{type:'NUMBER'},unidade:{type:'STRING'},preco_unitario:{type:'NUMBER'},total:{type:'NUMBER'}},required:['nome','preco_unitario']}}},required:['itens']};
-const SYSTEM='Você extrai dados de fotos de notas fiscais e cupons de supermercado do Brasil. Liste apenas itens legíveis, com nome de produto claro (sem códigos), quantidade, unidade (un, kg, g, L, ml), preço unitário e total em reais como número. A data vai no formato AAAA-MM-DD e a loja é o nome do mercado. Se algo não estiver legível, omita; nunca invente itens.';
+const MAX_AI_IMAGE_EDGE=1600;
+const AI_ANALYZE_TIMEOUT_MS=120000;
+const shrink=file=>new Promise((ok,no)=>{
+  const reader=new FileReader();
+  reader.onload=()=>{
+    const img=new Image();
+    img.onload=()=>{
+      const scale=Math.min(1,MAX_AI_IMAGE_EDGE/Math.max(img.width,img.height));
+      const canvas=document.createElement('canvas');
+      canvas.width=Math.max(1,Math.round(img.width*scale));
+      canvas.height=Math.max(1,Math.round(img.height*scale));
+      const ctx=canvas.getContext('2d',{alpha:false});
+      ctx.fillStyle='#fff';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      const dataUrl=canvas.toDataURL('image/jpeg',0.82);
+      ok((dataUrl.split(',')[1]||'').trim());
+    };
+    img.onerror=()=>no(new Error('Imagem inválida'));
+    img.src=reader.result;
+  };
+  reader.onerror=()=>no(new Error('Não foi possível ler a imagem'));
+  reader.readAsDataURL(file);
+});
+const SCHEMA={type:'OBJECT',properties:{loja:{type:'STRING'},data:{type:'STRING'},itens:{type:'ARRAY',items:{type:'OBJECT',properties:{nome:{type:'STRING'},quantidade:{type:'NUMBER'},unidade:{type:'STRING'},preco_unitario:{type:'NUMBER'},total:{type:'NUMBER'}},required:['nome','quantidade','unidade','preco_unitario']}}},required:['loja','data','itens']};
+const SYSTEM='Você extrai dados de fotos de notas fiscais e cupons de supermercado do Brasil. Liste apenas itens legíveis, com nome de produto claro (sem códigos), quantidade, unidade (un, kg, g, L, ml), preço unitário e total em reais como número. A data vai no formato AAAA-MM-DD e a loja no nome do mercado. Se algo não estiver legível, omita; nunca invente itens.';
 let ctl=null;
 $('receiptPhotos').addEventListener('change',e=>{
   const files=[...e.target.files].filter(f=>f.type.startsWith('image/')),box=$('receiptPhotoPreview');box.innerHTML='';
@@ -172,26 +196,28 @@ $('analyzeReceiptPhotos').onclick=async()=>{
   $('analyzeReceiptPhotos').disabled=true;$('cancelReceiptAI').hidden=false;notas=[];
   for(const [n,f] of files.entries()){
     const t0=Date.now(),tick=setInterval(()=>st.textContent=`Analisando foto ${n+1} de ${files.length}… ${Math.round((Date.now()-t0)/1000)} s`,500);
-    ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),60000);let ok=true,err=null,j={};
+    ctl=new AbortController();
+    const to=setTimeout(()=>ctl.abort(),AI_ANALYZE_TIMEOUT_MS);
+    let ok=true,err=null,j={};
     try{
       const {data:{session}}=await sb.auth.getSession();
-      const r=await fetch(SB_URL+'/functions/v1/dynamic-service',{method:'POST',signal:ctl.signal,headers:{'Content-Type':'application/json',apikey:SB_KEY,Authorization:'Bearer '+session.access_token},
-        body:JSON.stringify({modo:'nota',systemInstruction:{parts:[{text:SYSTEM}]},contents:[{role:'user',parts:[{text:'Extraia os dados desta nota fiscal.'},{inlineData:{mimeType:'image/jpeg',data:await shrink(f)}}]}],generationConfig:{responseSchema:SCHEMA}})});
+      const imageBase64=await shrink(f);
+      if(!imageBase64)throw new Error('Não foi possível preparar a imagem para análise.');
+      const r=await fetch(SB_URL+'/functions/v1/dynamic-service',{method:'POST',signal:ctl.signal,headers:{'Content-Type':'application/json',apikey:SB_KEY,Authorization:'Bearer '+session.access_token},body:JSON.stringify({modo:'nota',systemInstruction:{parts:[{text:SYSTEM}]},contents:[{role:'user',parts:[{text:'Extraia os dados desta nota fiscal.'},{inlineData:{mimeType:'image/jpeg',data:imageBase64}}]}],generationConfig:{responseSchema:SCHEMA}})});
       j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||'HTTP '+r.status);
       const txt=(j.candidates?.[0]?.content?.parts||[]).map(p=>p.text||'').join('').replace(/```json|```/g,'');
       const o=JSON.parse(txt);notas.push({loja:o.loja||'',data:/^\d{4}-\d{2}-\d{2}$/.test(o.data)?o.data:ymd(),itens:(o.itens||[]).filter(i=>i.nome&&Number(i.preco_unitario)>0)});
-    }catch(e){ok=false;err=e.name==='AbortError'?'Cancelado ou demorou mais de 60 s':e.message;st.textContent='Foto '+(n+1)+': '+err}
+    }catch(e){ok=false;err=e.name==='AbortError'?'Cancelado ou demorou mais de '+Math.round(AI_ANALYZE_TIMEOUT_MS/1000)+' s':e.message;st.textContent='Foto '+(n+1)+': '+err}
     finally{clearInterval(tick);clearTimeout(to)}
     const u=j.usageMetadata||{};
-    sb.rpc('study_log_ai',{p_modo:'compras_nota',p_model:j.modelVersion||'',p_prompt:u.promptTokenCount||0,p_output:u.candidatesTokenCount||0,p_total:u.totalTokenCount||0,p_estimated:!u.totalTokenCount,p_ok:ok,p_error:err,p_ms:Date.now()-t0}).then(()=>{});
+    sb.rpc('study_log_ai',{p_modo:'compras_nota',p_model:j.modelVersion||'',p_prompt:u.promptTokenCount||0,p_output:u.candidatesTokenCount||0,p_total:u.totalTokenCount||0,p_estimated:!u.totalTokenCount,p_ok:ok,p_error:err||''}).then(()=>{}).catch(()=>{});
     if(!ok&&err.startsWith('Cancelado'))break;
   }
   $('cancelReceiptAI').hidden=true;$('analyzeReceiptPhotos').disabled=false;
   if(notas.length){st.textContent='Revise os dados abaixo antes de salvar no histórico.';renderNotas()}
 };
 function renderNotas(){
-  $('receiptExtracted').innerHTML=notas.map((n,k)=>`<div class="panel" style="box-shadow:none;margin:10px 0 0"><div class="formgrid"><div><label>Loja</label><input data-n="${k}" data-f="loja" value="${esc(n.loja)}" style="width:100%"></div><div><label>Data</label><input type="date" data-n="${k}" data-f="data" value="${n.data}" style="width:100%"></div></div>
-  <div style="overflow-x:auto"><table><tr><th></th><th>Produto</th><th>Qtd</th><th>Preço un.</th></tr>${n.itens.map((i,m)=>`<tr><td><input type="checkbox" checked data-n="${k}" data-i="${m}" data-f="on"></td><td><input list="products" data-n="${k}" data-i="${m}" data-f="nome" value="${esc(i.nome)}" style="min-width:150px"></td><td><input type="number" step="any" data-n="${k}" data-i="${m}" data-f="quantidade" value="${i.quantidade||1}" style="width:64px"></td><td><input type="number" step=".01" data-n="${k}" data-i="${m}" data-f="preco_unitario" value="${i.preco_unitario}" style="width:84px"></td></tr>`).join('')}</table></div></div>`).join('')+'<button class="primary" id="saveNotas" style="width:100%;margin-top:10px">Salvar notas no histórico</button>';
+  $('receiptExtracted').innerHTML=notas.map((n,k)=>`<div class="panel" style="box-shadow:none;margin:10px 0 0"><div class="formgrid"><div><label>Loja</label><input data-n="${k}" data-f="loja" value="${esc(n.loja)}" style="width:100%"></div><div><label>Data</label><input type="date" data-n="${k}" data-f="data" value="${n.data}" style="width:100%"></div></div><div style="overflow-x:auto"><table><tr><th></th><th>Produto</th><th>Qtd</th><th>Preço un.</th></tr>${n.itens.map((i,m)=>`<tr><td><input type="checkbox" checked data-n="${k}" data-i="${m}" data-f="on"></td><td><input data-n="${k}" data-i="${m}" data-f="nome" value="${esc(i.nome)}" style="min-width:150px"></td><td><input type="number" step="any" data-n="${k}" data-i="${m}" data-f="quantidade" value="${Number(i.quantidade)||1}" style="width:64px"></td><td><input type="number" step="0.01" data-n="${k}" data-i="${m}" data-f="preco_unitario" value="${Number(i.preco_unitario)||0}" style="width:84px"></td></tr>`).join('')}</table></div></div>`).join('')+`<button class="primary" id="saveNotas" style="width:100%;margin-top:12px">Salvar notas no histórico</button>`;
   $('saveNotas').onclick=saveNotas;
 }
 function saveNotas(){
@@ -213,3 +239,4 @@ function saveNotas(){
 }
 afterLogout();
 })();
+
