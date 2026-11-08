@@ -1,4 +1,4 @@
-/* Minha Lista de Compras V12 — Supabase (projeto "Bases"): login, sincronização, família e IA de notas.
+/* Minha Lista de Compras V13 — Supabase (projeto "Bases"): login, sincronização, família e IA de notas.
    Sem login o app segue em modo local (localStorage). A chave abaixo é a publishable (pública); nunca use a service_role. */
 (()=>{
 const SB_URL='https://ytsabhbkywymtevkeokg.supabase.co',SB_KEY='sb_publishable_cyIolmmdF5zKN0rAOJQOXg_ECcSq7z6';
@@ -35,24 +35,28 @@ async function pull(wanted){
   listId=(wanted&&lists.find(l=>l.id===wanted)?.id)||lists.find(l=>l.id===localStorage.compras_list)?.id||lists[0].id;
   localStorage.compras_list=listId;
   if(!localStorage.compras_backup_pre_cloud)localStorage.compras_backup_pre_cloud=JSON.stringify(data);
-  await ensureCats();
+  const {data:cr,error:ce}=await sb.from('shopping_categories').select('id,name').eq('list_id',listId).order('sort_order');
+  if(ce)throw ce;
+  if(!cr.length)await ensureCats();else{cats=Object.fromEntries(cr.map(x=>[x.name,x.id]));data.categories=cr.map(x=>x.name);categories=data.categories}
   const cn=Object.fromEntries(Object.entries(cats).map(([n,i])=>[i,n]));
-  const [it,pu,ac,pr,al]=await Promise.all([
+  const [it,pu,ac,pr,al,st]=await Promise.all([
     sb.from('shopping_items').select('id,name,is_checked,category_id,product_id').eq('list_id',listId).order('created_at'),
     sb.from('shopping_purchases').select('id,store_name,purchased_at,total_amount,shopping_purchase_items(id,product_id,unit_price,total_price,quantity,unit,product_name)').eq('list_id',listId).order('purchased_at',{ascending:false}).limit(500),
     sb.from('shopping_activity').select('action,details,created_at').eq('list_id',listId).order('created_at',{ascending:false}).limit(100),
-    sb.from('shopping_products').select('id,name').eq('list_id',listId),
-    sb.from('shopping_product_aliases').select('alias,alias_norm,product_id').eq('list_id',listId)]);
-  for(const r of [it,pu,ac,pr,al])if(r.error)throw r.error;
-  const pn=Object.fromEntries(pr.data.map(x=>[x.id,x.name]));
+    sb.from('shopping_products').select('id,name,cycle_days').eq('list_id',listId),
+    sb.from('shopping_product_aliases').select('alias,alias_norm,product_id').eq('list_id',listId),
+    sb.from('shopping_stores').select('alias,alias_norm,name').eq('list_id',listId)]);
+  for(const r of [it,pu,ac,pr,al,st])if(r.error)throw r.error;
+  const pn=Object.fromEntries(pr.data.map(x=>[x.id,x.name])),pc=Object.fromEntries(pr.data.map(x=>[x.id,x.cycle_days||0]));
+  data.stores=st.data.map(s=>({alias:s.alias,norm:s.alias_norm,name:s.name,sent:1}));
   await loadMembers();
   const ld=d=>{const x=new Date(d);return new Date(x-x.getTimezoneOffset()*6e4).toISOString().slice(0,10)};
-  data.items=it.data.map(r=>({id:r.id,name:r.name,cat:cn[r.category_id]||'Outros',checked:r.is_checked,pid:r.product_id}));
+  data.items=it.data.map(r=>({id:r.id,name:r.name,cat:cn[r.category_id]||'Outros',checked:r.is_checked,pid:r.product_id,cycle:pc[r.product_id]||0}));
   data.aliases=al.data.map(a=>({text:a.alias,norm:a.alias_norm,name:pn[a.product_id]||'',sent:1})).filter(a=>a.name);
-  data.prices=pu.data.flatMap(p=>p.shopping_purchase_items.map(i=>({name:pn[i.product_id]||i.product_name,receiptName:i.product_name,pid:i.id,value:Number(i.unit_price??i.total_price),qty:Number(i.quantity)||1,unit:i.unit,date:ld(p.purchased_at),store:p.store_name||'',grp:p.id,sent:1})));
+  data.prices=pu.data.flatMap(p=>p.shopping_purchase_items.map(i=>({name:pn[i.product_id]||i.product_name,receiptName:i.product_name,pid:i.id,tot:Number(i.total_price),value:Number(i.unit_price??i.total_price),qty:Number(i.quantity)||1,unit:i.unit,date:ld(p.purchased_at),store:p.store_name||'',grp:p.id,sent:1})));
   data.activity=ac.data.map(a=>({action:a.action,item:a.details?.item||'',actor:a.details?.actor||'Alguém',at:a.created_at,sent:1}));
   data.profile.listName=lists.find(l=>l.id===listId).name;
-  snap={items:new Map(data.items.map(i=>[i.id,{checked:!!i.checked,name:i.name,cat:i.cat}])),pur:Object.fromEntries(pu.data.map(p=>[p.id,{id:p.id,total:Number(p.total_amount)||0}]))};
+  snap={items:new Map(data.items.map(i=>[i.id,{checked:!!i.checked,name:i.name,cat:i.cat,cycle:i.cycle||0}])),pur:Object.fromEntries(pu.data.map(p=>[p.id,{id:p.id,total:Number(p.total_amount)||0}]))};
   persist();render();
 }
 async function loadMembers(){
@@ -62,6 +66,12 @@ async function loadMembers(){
 async function doPush(){
   if(!listId||role==='viewer')return;
   const now=new Date().toISOString(),cur=new Map(data.items.map(i=>[i.id,i]));
+  const ops=data.catOps||[];
+  for(const op of ops){
+    if(op.op==='rename'){const {error}=await sb.from('shopping_categories').update({name:op.to}).eq('list_id',listId).eq('name',op.from);if(error)throw error;cats[op.to]=cats[op.from];delete cats[op.from];snap.items.forEach(o=>{if(o.cat===op.from)o.cat=op.to})}
+    else await ensureCats();
+  }
+  data.catOps=[];
   const gone=[...snap.items.keys()].filter(id=>!cur.has(id));
   if(gone.length){const {error}=await sb.from('shopping_items').delete().in('id',gone);if(error)throw error;gone.forEach(id=>snap.items.delete(id))}
   const nw=data.items.filter(i=>!snap.items.has(i.id));
@@ -72,12 +82,12 @@ async function doPush(){
     const {error:e2}=await sb.from('shopping_items').insert(nw.map(i=>({id:i.id,list_id:listId,product_id:pm[i.name],category_id:cats[i.cat]||null,name:i.name,is_checked:!!i.checked,added_by:me.id,checked_by:i.checked?me.id:null,checked_at:i.checked?now:null})));
     if(e2)throw e2;nw.forEach(i=>{i.pid=pm[i.name];snap.items.set(i.id,{checked:!!i.checked,name:i.name,cat:i.cat})});
   }
-  for(const i of data.items.filter(i=>{const o=snap.items.get(i.id);return o&&(o.name!==i.name||o.cat!==i.cat)})){
+  for(const i of data.items.filter(i=>{const o=snap.items.get(i.id);return o&&(o.name!==i.name||o.cat!==i.cat||(o.cycle||0)!==(i.cycle||0))})){
     let pid=i.pid;
-    if(pid){const {error}=await sb.from('shopping_products').update({name:i.name,category_id:cats[i.cat]||null}).eq('id',pid);if(error){if(error.code==='23505')pid=null;else throw error}}
+    if(pid){const {error}=await sb.from('shopping_products').update({name:i.name,category_id:cats[i.cat]||null,cycle_days:i.cycle||null}).eq('id',pid);if(error){if(error.code==='23505')pid=null;else throw error}}
     if(!pid){const pm=await productIds([i.name]);pid=i.pid=pm[i.name]}
     const {error}=await sb.from('shopping_items').update({name:i.name,category_id:cats[i.cat]||null,product_id:pid,updated_at:now}).eq('id',i.id);
-    if(error)throw error;Object.assign(snap.items.get(i.id),{name:i.name,cat:i.cat});
+    if(error)throw error;Object.assign(snap.items.get(i.id),{name:i.name,cat:i.cat,cycle:i.cycle||0});
   }
   const on=[],off=[];
   data.items.forEach(i=>{const s=snap.items.get(i.id);if(s&&s.checked!==!!i.checked)(i.checked?on:off).push(i.id)});
@@ -99,6 +109,18 @@ async function doPush(){
     const {error:e3}=await sb.from('shopping_purchases').update({total_amount:pu.total}).eq('id',pu.id);if(e3)throw e3;
     arr.forEach(p=>p.sent=1);
   }
+  const pidOf=g=>snap.pur[g]?.id||(isUUID(g)?g:null),touched=new Set(),gl=data.prices.filter(p=>p.sent&&p.pid&&(p.del||p.edit)),dels=gl.filter(p=>p.del).map(p=>p.pid);
+  if(dels.length){const {error}=await sb.from('shopping_purchase_items').delete().in('id',dels);if(error)throw error}
+  for(const p of gl.filter(p=>p.edit&&!p.del)){const {error}=await sb.from('shopping_purchase_items').update({quantity:p.qty||1,unit_price:p.value,total_price:+(p.value*(p.qty||1)).toFixed(2)}).eq('id',p.pid);if(error)throw error;p.tot=null;p.edit=0}
+  gl.forEach(p=>touched.add(p.grp));data.prices.filter(p=>p.sent&&p.meta).forEach(p=>touched.add(p.grp));
+  data.prices=data.prices.filter(p=>!p.del);
+  for(const g of touched){
+    const id=pidOf(g);if(!id)continue;const ls=data.prices.filter(p=>p.grp===g);
+    if(!ls.length){const {error}=await sb.from('shopping_purchases').delete().eq('id',id);if(error)throw error;delete snap.pur[g];continue}
+    const m=ls.find(p=>p.meta)||ls[0],tot=+ls.reduce((s,p)=>s+(p.tot!=null?p.tot:p.value*(p.qty||1)),0).toFixed(2);
+    const {error}=await sb.from('shopping_purchases').update({store_name:m.store||null,purchased_at:new Date(m.date+'T12:00:00').toISOString(),total_amount:tot}).eq('id',id);if(error)throw error;
+    ls.forEach(p=>p.meta=0);if(snap.pur[g])snap.pur[g].total=tot;
+  }
   for(const p of data.prices.filter(x=>x.sent&&x.dirty&&x.pid)){
     const pm=await productIds([p.name]);
     const {error}=await sb.from('shopping_purchase_items').update({product_id:pm[p.name]}).eq('id',p.pid);if(error)throw error;p.dirty=0;
@@ -109,6 +131,10 @@ async function doPush(){
     const {error}=await sb.from('shopping_product_aliases').upsert(ua.map(a=>({list_id:listId,product_id:pm[a.name],alias:a.text,alias_norm:a.norm,created_by:me.id})),{onConflict:'list_id,alias_norm'});
     if(error)throw error;ua.forEach(a=>a.sent=1);
   }
+  const dl=AL().filter(a=>a.del);
+  if(dl.length){const {error}=await sb.from('shopping_product_aliases').delete().eq('list_id',listId).in('alias_norm',dl.map(a=>a.norm));if(error)throw error;data.aliases=AL().filter(a=>!a.del)}
+  const us=(data.stores||[]).filter(s=>!s.sent);
+  if(us.length){const {error}=await sb.from('shopping_stores').upsert(us.map(s=>({list_id:listId,alias:s.alias,alias_norm:s.norm,name:s.name})),{onConflict:'list_id,alias_norm'});if(error)throw error;us.forEach(s=>s.sent=1)}
   const na=data.activity.filter(a=>!a.sent);
   if(na.length){const {error}=await sb.from('shopping_activity').insert([...na].reverse().map(a=>({list_id:listId,actor_id:me.id,action:a.action,details:{item:a.item,actor:a.actor}})));if(error)throw error;na.forEach(a=>a.sent=1)}
   dirty=false;persist();setSync('Sincronizado às '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),'Nuvem');
@@ -157,6 +183,7 @@ async function afterLogin(user){
     await pull();renderFamily();
     const {data:a}=await sb.rpc('study_my_access');aiOk=!!(a&&a[0]&&a[0].r_ai);
     $('aiBox').hidden=!aiOk;$('aiDenied').hidden=aiOk;
+    const nm=user.user_metadata?.nome;if(nm&&!data.profile.actor){data.profile.actor=nm;persist();render()}
     setSync('Sincronizado','Nuvem');auth('');
   }catch(e){setSync('Erro: '+(e.message||e),'Erro');auth('Erro ao carregar a lista: '+(e.message||e))}
 }
@@ -172,6 +199,8 @@ $('btnSignup').onclick=async()=>{
 };
 $('googleLogin').onclick=async()=>{const {error}=await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin+location.pathname}});if(error)auth('Falha no login Google: '+error.message)};
 $('googleLogout').onclick=()=>sb.auth.signOut();
+window.cloudOn=()=>!!listId;
+window.saveActorName=n=>{if(me)sb.auth.updateUser({data:{nome:n}})};
 sb.auth.onAuthStateChange((ev,s)=>setTimeout(()=>{
   if(s?.user&&me?.id!==s.user.id)afterLogin(s.user);
   else if(!s&&me)afterLogout();
@@ -222,7 +251,7 @@ $('analyzeReceiptPhotos').onclick=async()=>{
 const tk=s=>[...new Set(norm(s).split(/[^a-z0-9]+/).filter(w=>w.length>2))];
 const tc=s=>s.toLowerCase().replace(/(^|\s)\S/g,c=>c.toUpperCase());
 function match(name){
-  const an=aliasNorm(name),hit=AL().find(x=>x.norm===an),known=hit&&data.items.find(i=>i.name===hit.name);
+  const an=aliasNorm(name),hit=AL().find(x=>x.norm===an&&!x.del),known=hit&&data.items.find(i=>i.name===hit.name);
   if(known)return{c:[{i:known,s:1}],st:'ok',alias:true};
   const a=tk(name),en=norm(name);
   const c=data.items.map(i=>{if(norm(i.name)===en)return{i,s:1};const b=tk(i.name);if(!a.length||!b.length)return{i,s:0};
@@ -231,7 +260,7 @@ function match(name){
 }
 function renderNotas(){
   $('receiptExtracted').innerHTML=notas.map((n,k)=>{n.itens.forEach(i=>i.m=match(i.nome));
-    return `<div class="panel" style="box-shadow:none;margin:10px 0 0"><div class="formgrid"><div><label>Supermercado</label><input data-n="${k}" data-f="loja" value="${esc(n.loja)}" style="width:100%"></div><div><label>Data</label><input type="date" data-n="${k}" data-f="data" value="${n.data}" style="width:100%"></div></div>
+    return `<div class="panel" style="box-shadow:none;margin:10px 0 0"><div class="formgrid"><div><label>Supermercado</label><input data-n="${k}" data-f="loja" value="${esc(displayStore(n.loja))}" style="width:100%"></div><div><label>Data</label><input type="date" data-n="${k}" data-f="data" value="${n.data}" style="width:100%"></div></div>
     <div style="overflow-x:auto"><table><tr><th></th><th>Na nota</th><th>Associar a</th><th>Qtd</th><th>Preço un.</th></tr>${n.itens.map((i,m)=>`<tr><td><input type="checkbox" checked data-n="${k}" data-i="${m}" data-f="on"></td><td>${esc(i.nome)}${i.m.st==='doubt'?' <b class="bad">⚠</b>':''}${i.m.alias?' <small title="Conversão já aprendida">✓</small>':''}</td><td><select data-n="${k}" data-i="${m}" data-f="assoc" style="max-width:190px">${i.m.st==='doubt'?'<option value="?">Confirme o item…</option>':''}${i.m.c.map((x,q)=>`<option value="${x.i.id}" ${i.m.st==='ok'&&q===0?'selected':''}>${esc(x.i.name)}</option>`).join('')}<option value="new" ${i.m.st==='new'?'selected':''}>➕ Novo: ${esc(tc(i.nome))}</option></select></td><td><input type="number" step="any" data-n="${k}" data-i="${m}" data-f="quantidade" value="${i.quantidade||1}" style="width:60px"></td><td><input type="number" step=".01" data-n="${k}" data-i="${m}" data-f="preco_unitario" value="${i.preco_unitario}" style="width:80px"></td></tr>`).join('')}</table></div></div>`}).join('')+'<p class="note">⚠ = dúvida: escolha o item certo ou crie um novo antes de salvar. Depois, dá para revisar no histórico.</p><button class="primary" id="saveNotas" style="width:100%;margin-top:6px">Salvar notas no histórico</button>';
   $('saveNotas').onclick=saveNotas;
 }
@@ -240,7 +269,8 @@ function saveNotas(){
   if(notas.some((n,k)=>n.itens.some((_,m)=>val(k,'on',m).checked&&val(k,'assoc',m).value==='?')))return toast('Confirme os itens marcados com ⚠ antes de salvar');
   let total=0;
   notas.forEach((n,k)=>{
-    const loja=val(k,'loja').value.trim(),dt=val(k,'data').value||ymd(),grp='ocr-'+uid();let c=0;
+    const loja=val(k,'loja').value.trim();if(n.loja&&loja&&aliasNorm(n.loja)!==aliasNorm(loja))setStore(n.loja,loja);
+    const dt=val(k,'data').value||ymd(),grp='ocr-'+uid();let c=0;
     n.itens.forEach((it,m)=>{
       if(!val(k,'on',m).checked)return;
       const v=Number(val(k,'preco_unitario',m).value),q=Number(val(k,'quantidade',m).value)||1,as=val(k,'assoc',m).value;

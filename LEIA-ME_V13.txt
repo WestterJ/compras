@@ -1,0 +1,12 @@
+MINHA LISTA DE COMPRAS V13  (index.html + compras-supabase.js; substitui a V12)
+
+NOVO
+- Lista: toque no nome do item para editar (nome, categoria e "repor a cada N dias"). Botão "Ocultar marcados" (lembra a escolha).
+- Menu Cadastros: Mercados (nome amigável x nome da nota, aplicado automaticamente nas próximas notas), Categorias (renomear/criar),
+  Itens com busca, edição, exclusão e as conversões da nota de cada item (✕ remove a conversão).
+- Notas fiscais e dados > Últimas compras: abrir uma compra, editar mercado/data, associação, quantidade e preço de cada linha, excluir linha ou compra.
+- Previsão: ciclo definido por você (por item) sobrepõe o cálculo automático; botão "Adicionar todas as sugestões à lista".
+  Corrigido: o botão de adicionar aparecia no item errado (marcado = comprado, então só itens marcados voltam à lista).
+- Família: o botão "Salvar identificação" não tinha ação. Agora salva o nome (e o segue na sua conta ao entrar em outro aparelho).
+
+BANCO (já aplicado): shopping_stores (nome amigável do mercado) e coluna shopping_products.cycle_days.

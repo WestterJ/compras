@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#003a70">
-<title>Minha Lista de Compras | V12</title>
+<title>Minha Lista de Compras | V13</title>
 <style>
 :root{--bg:#fff9c9;--paper:#fffdf0;--ink:#514d38;--muted:#928b68;--line:#e8dfaa;--accent:#c5a94c;--green:#66835c;--red:#b85b4b;--shadow:0 8px 24px #766b3215}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
@@ -98,10 +98,11 @@ html.dark .auth-card,html.dark .receipt-drop{background:#14263b;border-color:#31
 .cat-toggle{display:flex;width:100%;justify-content:space-between;align-items:center;background:none;border:0;padding:8px 2px;color:inherit;font:inherit;font-weight:750;cursor:pointer;text-align:left}.cat-toggle small{font-weight:400;opacity:.7}
 .price-insight b{font-weight:700}#history small.note{display:block}
 </style>
+<style>.alias{display:flex;gap:4px;align-items:center}.alias button{padding:0 6px}.e-cycle{margin-top:2px}</style>
 </head>
 <body>
 <header class="app-header">
- <div class="header-left"><button id="mobileMenu" class="mobile-menu-btn" aria-label="Abrir menu">☰</button><div class="brand-mark">🛒</div><div class="brand-copy"><h1>Minha Lista de Compras</h1><small>Versão V12 · Compras em família</small></div></div>
+ <div class="header-left"><button id="mobileMenu" class="mobile-menu-btn" aria-label="Abrir menu">☰</button><div class="brand-mark">🛒</div><div class="brand-copy"><h1>Minha Lista de Compras</h1><small>Versão V13 · Compras em família</small></div></div>
  <div class="header-actions"><span class="cloud-pill" id="headerSync">● <span>Modo local</span></span><button id="themeToggle" class="theme-toggle" aria-label="Alternar tema" title="Alternar tema">◐</button></div>
 </header>
 <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
@@ -115,6 +116,7 @@ html.dark .auth-card,html.dark .receipt-drop{background:#14263b;border-color:#31
    <button class="nav-btn" data-target="panel-prices"><span class="nav-ico">💲</span><span class="nav-label">Preços e histórico</span></button>
    <button class="nav-btn" data-target="panel-family"><span class="nav-ico">👨‍👩‍👧‍👦</span><span class="nav-label">Família e sincronização</span></button>
    <button class="nav-btn" data-target="panel-activity"><span class="nav-ico">🕘</span><span class="nav-label">Atividade recente</span></button>
+   <button class="nav-btn" data-target="panel-registry"><span class="nav-ico">🗂️</span><span class="nav-label">Cadastros</span></button>
    <button class="nav-btn" data-target="panel-tools"><span class="nav-ico">🧾</span><span class="nav-label">Notas fiscais e dados</span></button>
   </nav>
   <div class="sidebar-foot"><div class="sidebar-foot-note">Lista compartilhada<br><b>Compras da família</b></div><button id="collapseSidebar" class="collapse-btn">« <span>Recolher menu</span></button></div>
@@ -125,7 +127,7 @@ html.dark .auth-card,html.dark .receipt-drop{background:#14263b;border-color:#31
   <div class="row"><input id="search" placeholder="Buscar produto na lista..." aria-label="Buscar produto"><button class="small" id="addOpen">＋ Produto</button></div>
   <div class="toolbar filters" id="filters"></div>
   <div class="row" style="justify-content:space-between"><span class="note" id="progress">0 itens marcados</span><button class="small ghost" id="clearChecks">Desmarcar todos</button></div>
-  <div class="listtools"><button type="button" class="small primary" id="markAll">✔ Marcar todos</button><button type="button" class="small" id="openAll">Expandir</button><button type="button" class="small" id="closeAll">Recolher</button>
+  <div class="listtools"><button type="button" class="small primary" id="markAll">✔ Marcar todos</button><button type="button" class="small" id="openAll">Expandir</button><button type="button" class="small" id="closeAll">Recolher</button><button type="button" class="small" id="hideDone">🙈 Ocultar marcados</button>
    <label>Estou em <input id="curStore" list="storeList" placeholder="Supermercado"></label><label>Filtrar <select id="storeFilter"></select></label><datalist id="storeList"></datalist></div>
   <div id="list"></div>
  </div>
@@ -143,6 +145,8 @@ html.dark .auth-card,html.dark .receipt-drop{background:#14263b;border-color:#31
   <div id="forecast" class="empty">Registre compras do mesmo produto em datas diferentes para começar a previsão.</div>
   <div class="note" style="margin-top:8px">Critério: intervalo mediano entre compras, tempo desde a última compra e janela selecionada. Com apenas um registro, não há base suficiente para prever.</div>
  </div>
+ <div class="panel" id="panel-registry"></div>
+ <div class="panel" id="panel-purchases"><h2>Últimas compras</h2><p class="note">Toque em uma compra para consultar ou corrigir mercado, data, itens, quantidades e preços.</p><div id="purchHist"></div></div>
  <div class="panel" id="panel-activity"><h2>Atividade recente</h2><div id="activity" class="empty">As alterações feitas neste aparelho aparecem aqui.</div></div>
  <div class="panel">
   <h2>Importar / exportar lista</h2>
@@ -215,7 +219,7 @@ html.dark .auth-card,html.dark .receipt-drop{background:#14263b;border-color:#31
 <form id="addForm"><label>Nome do produto</label><input id="newName" required style="width:100%" placeholder="Ex.: Arroz 5 kg"><label>Categoria</label><select id="newCat" style="width:100%"></select><button class="primary" style="width:100%;margin-top:14px">Adicionar à lista</button></form></div></div>
 <div id="toast"></div>
 <script>
-const categories=["Carnes e frios","Hortifruti","Laticínios e ovos","Bebidas","Doces e Snacks","Temperos e Condimentos","Conservas","Pães e Padaria","Higiene e limpeza","Grãos e Cereais","Mix funcional","Outros"];
+let categories=["Carnes e frios","Hortifruti","Laticínios e ovos","Bebidas","Doces e Snacks","Temperos e Condimentos","Conservas","Pães e Padaria","Higiene e limpeza","Grãos e Cereais","Mix funcional","Outros"];
 const seed=[
 ["Carnes e frios",["Lombo suíno","Patinho","Paloma","Alcatra bovina","Presunto","Peito de peru","Mussarela fatiada","Bacon","Frango"]],
 ["Hortifruti",["Alface","Cenoura","Banana prata","Mamão formosa","Beterraba","Manga Tommy","Limão Tahiti","Abacate","Tomate longa vida","Abóbora cabotiá","Maçã nacional","Abobrinha italiana","Chuchu","Batata-doce","Alho a granel","Cebola","Kiwi","Ameixa"]],
@@ -245,6 +249,7 @@ if(!data){data={items:[],prices:[],activity:[],profile:{actor:"",listName:"Compr
  ];}
 function uid(){return Math.random().toString(36).slice(2,10)}
 function ymd(){const d=new Date();return new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10)}
+data.categories=data.categories&&data.categories.length?data.categories:[...categories];categories=data.categories;data.stores=data.stores||[];data.aliases=data.aliases||[];data.catOps=data.catOps||[];
 function save(){data.activity=data.activity||[];localStorage.setItem("compras_v2",JSON.stringify(data));render()}
 function actor(){return (data.profile&&data.profile.actor)||"Pessoa deste aparelho"}
 function logActivity(action,item){data.activity=data.activity||[];data.activity.unshift({action,item:item||"",actor:actor(),at:new Date().toISOString()});data.activity=data.activity.slice(0,100)}
@@ -276,14 +281,15 @@ function getReplenishmentSuggestions(){
  const result=[];
  groups.forEach(g=>{
    const dates=[...new Set(g.dates)].sort();
-   if(dates.length<2)return;
+   const itm=data.items.find(i=>norm(i.name)===norm(g.name)),custom=itm&&itm.cycle>0?itm.cycle:0;
+   if(dates.length<2&&!custom)return;
    const intervals=[];
    for(let i=1;i<dates.length;i++){
      const gap=daysBetween(dates[i-1],dates[i]);
      if(gap>0 && gap<=365)intervals.push(gap);
    }
-   if(!intervals.length)return;
-   const cycle=Math.round(median(intervals));
+   if(!intervals.length&&!custom)return;
+   const cycle=custom||Math.round(median(intervals));
    const last=dates[dates.length-1];
    const elapsed=Math.max(0,daysBetween(last,todayISO));
    const remaining=cycle-elapsed;
@@ -293,7 +299,7 @@ function getReplenishmentSuggestions(){
      result.push({
        name:g.name,cycle,elapsed,remaining,due,
        confidence:dates.length>=4?"Boa":dates.length===3?"Média":"Inicial",
-       count:dates.length,
+       count:dates.length,custom:!!custom,
        exists:!!item,
        checked:!!(item&&item.checked),
        status:remaining<0?"Atrasado":remaining===0?"Previsto hoje":"Previsto em breve"
@@ -316,58 +322,112 @@ function renderReplenishment(){
  }
  box.innerHTML=suggestions.map(s=>{
    const dueLabel=s.remaining<0?`${Math.abs(s.remaining)} dia(s) de atraso`:s.remaining===0?"Hoje":`em ${s.remaining} dia(s)`;
-   const button=s.checked
-    ?'<span class="chip active">Já marcado</span>'
-    :`<button class="small primary" data-suggest-add="${esc(s.name)}">Adicionar à lista</button>`;
+   const button=s.exists&&!s.checked?'<span class="chip active">Já na lista</span>':`<button class="small primary" data-suggest-add="${esc(s.name)}">Adicionar à lista</button>`;
    return `<div class="item" style="align-items:center;flex-wrap:wrap">
     <div class="name"><b>${esc(s.name)}</b>
-     <small>${s.status} · ${dueLabel} · ciclo médio ${s.cycle} dias</small>
+     <small>${s.status} · ${dueLabel} · ciclo ${s.custom?"definido":"médio"} de ${s.cycle} dias</small>
      <small>${s.count} compras registradas · confiança ${s.confidence} · próxima previsão ${s.due.toLocaleDateString("pt-BR")}</small>
+     ${s.exists?`<label style="margin-top:4px">Repor a cada <input type="number" min="1" max="365" data-cyc="${esc(s.name)}" value="${s.custom?s.cycle:""}" placeholder="${s.cycle}" style="width:70px"> dias</label>`:""}
     </div>${button}
    </div>`;
  }).join("");
- document.querySelectorAll("[data-suggest-add]").forEach(btn=>btn.onclick=()=>{
-   const name=btn.dataset.suggestAdd;
-   let item=data.items.find(i=>norm(i.name)===norm(name));
-   if(item){item.checked=false;}
-   else data.items.push({id:uid(),name,cat:"Outros",checked:false});
-   logActivity("Incluiu sugestão de reposição",name);
-   save();toast(name+" incluído na lista");
- });
+ const addSugg=name=>{let item=data.items.find(i=>norm(i.name)===norm(name));if(item)item.checked=false;else data.items.push({id:uid(),name,cat:"Outros",checked:false})};
+ const pend=suggestions.filter(s=>!s.exists||s.checked);
+ if(pend.length)box.insertAdjacentHTML("afterbegin",`<div class="row" style="margin:6px 0"><button class="small primary" id="addAllSugg">Adicionar todas as sugestões à lista (${pend.length})</button></div>`);
+ document.getElementById("addAllSugg")?.addEventListener("click",()=>{pend.forEach(s=>addSugg(s.name));logActivity("Incluiu sugestões de reposição",pend.length+" itens");save();toast(pend.length+" itens incluídos na lista")});
+ document.querySelectorAll("[data-suggest-add]").forEach(btn=>btn.onclick=()=>{addSugg(btn.dataset.suggestAdd);logActivity("Incluiu sugestão de reposição",btn.dataset.suggestAdd);save();toast(btn.dataset.suggestAdd+" incluído na lista")});
+ document.querySelectorAll("[data-cyc]").forEach(inp=>inp.onchange=()=>{const it=data.items.find(i=>norm(i.name)===norm(inp.dataset.cyc));if(!it)return;it.cycle=Math.max(0,Math.min(365,Number(inp.value)||0));logActivity("Definiu ciclo de reposição",it.name+" · "+(it.cycle?it.cycle+" dias":"automático"));save()});
 }
 const LS=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}};
 let openCats=LS('compras_open',{}),curStore=localStorage.getItem('compras_store')||'',storeFilter='',editId=null,reIdx=-1;
+function displayStore(s){const n=aliasNorm(s||'');const m=(data.stores||[]).find(x=>x.norm===n);return m?m.name:(s||'')}
+function setStore(alias,name){const n=aliasNorm(alias);data.stores=(data.stores||[]).filter(x=>x.norm!==n);data.stores.push({alias,norm:n,name,sent:0})}
+function lineTot(p){return p.tot!=null?p.tot:+(p.value*(p.qty||1)).toFixed(2)}
 function aliasNorm(s){return norm(s).replace(/\s+/g,' ').trim()}
 function sigla(s){s=(s||'').trim();if(!s)return'';const w=s.split(/\s+/).filter(x=>x.length>2);return(w.length>1?w.map(x=>x[0]).join('').slice(0,3):s.slice(0,4)).toUpperCase()}
-function storesList(){return[...new Set(data.prices.map(p=>(p.store||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'))}
+function storesList(){return[...new Set(data.prices.map(p=>displayStore((p.store||'').trim())).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'))}
 function priceInfo(i){
  const all=data.prices.filter(x=>norm(x.name)===norm(i.name)).sort((a,b)=>b.date.localeCompare(a.date));
  if(!all.length)return'<small>Sem preço registrado</small>';
  const last=all[0],best=all.reduce((m,x)=>Number(x.value)<Number(m.value)?x:m,all[0]);
- const here=curStore?all.filter(x=>norm(x.store)===norm(curStore)):[],hb=here.length?here.reduce((m,x)=>x.value<m.value?x:m,here[0]):null;
+ const here=curStore?all.filter(x=>norm(displayStore(x.store))===norm(curStore)):[],hb=here.length?here.reduce((m,x)=>x.value<m.value?x:m,here[0]):null;
  const tag=t=>t?` · <b title="${esc(t)}">${esc(sigla(t))}</b>`:'';
- let h=`<small>Último: ${money(last.value)} · ${dateBR(last.date)}${tag(last.store)}</small><div class="price-insight"><span class="best">Menor: ${money(best.value)}${tag(best.store)}</span>`;
+ let h=`<small>Último: ${money(last.value)} · ${dateBR(last.date)}${tag(displayStore(last.store))}</small><div class="price-insight"><span class="best">Menor: ${money(best.value)}${tag(displayStore(best.store))}</span>`;
  if(curStore)h+=hb?(hb.value<=best.value+.005?`<span class="good">✓ Melhor aqui (${money(hb.value)})</span>`:`<span class="bad">Aqui ${money(hb.value)} · +${money(hb.value-best.value)}</span>`):'<span class="neutral">Sem preço aqui</span>';
  return h+'</div>';
 }
+function editForm(i){return`<div class="item"><div class="name"><input class="e-name" value="${esc(i.name)}" style="width:100%"><select class="e-cat" style="width:100%;margin-top:6px">${categories.map(c=>`<option ${c===i.cat?'selected':''}>${esc(c)}</option>`).join('')}</select><label style="margin-top:6px">Repor a cada (dias, opcional)</label><input class="e-cycle" type="number" min="1" max="365" value="${i.cycle||''}" placeholder="automático" style="width:100%"></div><div class="item-actions"><button class="small primary" data-editok="${i.id}">✓</button><button class="small ghost" data-editno="1">✕</button></div></div>`}
 function rowHTML(i){
- if(editId===i.id)return`<div class="item"><div class="name"><input id="editName" value="${esc(i.name)}" style="width:100%"><select id="editCat" style="width:100%;margin-top:6px">${categories.map(c=>`<option ${c===i.cat?'selected':''}>${c}</option>`).join('')}</select></div><div class="item-actions"><button class="small primary" data-editok="${i.id}">✓</button><button class="small ghost" data-editno="1">✕</button></div></div>`;
- return`<div class="item ${i.checked?'done':''}"><input type="checkbox" data-check="${i.id}" ${i.checked?'checked':''}><div class="name">${esc(i.name)}${priceInfo(i)}</div><div class="item-actions"><button class="small ghost" data-edit="${i.id}" title="Editar">✎</button><button class="small ghost" data-price="${i.id}" title="Registrar preço">＋</button><button class="small ghost" data-del="${i.id}" title="Excluir">🗑</button></div></div>`;
+ if(editId===i.id)return editForm(i);
+ return`<div class="item ${i.checked?'done':''}"><input type="checkbox" data-check="${i.id}" ${i.checked?'checked':''}><div class="name" data-edit="${i.id}" style="cursor:pointer" title="Toque para editar">${esc(i.name)}${priceInfo(i)}</div><div class="item-actions"><button class="small ghost" data-price="${i.id}" title="Registrar preço">＋</button><button class="small ghost" data-del="${i.id}" title="Excluir">🗑</button></div></div>`;
 }
-function renderList(shown){
- const q=document.getElementById("search").value,sf=storeFilter?shown.filter(i=>data.prices.some(p=>norm(p.name)===norm(i.name)&&norm(p.store)===norm(storeFilter))):shown;
- document.getElementById("list").innerHTML=categories.map(cat=>{const arr=sf.filter(i=>i.cat===cat);if(!arr.length)return"";
-  const pend=arr.filter(i=>!i.checked).length,op=q?true:(cat in openCats?openCats[cat]:pend>0);
-  return`<div class="category"><h3><button class="cat-toggle" data-cat-toggle="${cat}" aria-expanded="${op}"><span>${op?'▾':'▸'} ${cat}</span><small>${pend} pendente(s) de ${arr.length}</small></button></h3>${op?arr.map(rowHTML).join(""):""}</div>`}).join("")||'<div class="empty">Nenhum item.</div>';
- document.querySelectorAll("[data-cat-toggle]").forEach(b=>b.onclick=()=>{openCats[b.dataset.catToggle]=b.getAttribute("aria-expanded")!=="true";localStorage.setItem('compras_open',JSON.stringify(openCats));render()});
- document.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>{editId=b.dataset.edit;render();document.getElementById("editName")?.focus()});
+function bindEdits(){
+ document.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>{editId=b.dataset.edit;render();document.querySelector(".e-name")?.focus()});
  document.querySelectorAll("[data-editno]").forEach(b=>b.onclick=()=>{editId=null;render()});
- document.querySelectorAll("[data-editok]").forEach(b=>b.onclick=()=>{const i=data.items.find(x=>String(x.id)===b.dataset.editok),nm=document.getElementById("editName").value.trim(),cat=document.getElementById("editCat").value;
+ document.querySelectorAll("[data-editok]").forEach(b=>b.onclick=()=>{const box=b.closest(".item"),i=data.items.find(x=>String(x.id)===b.dataset.editok),nm=box.querySelector(".e-name").value.trim(),cat=box.querySelector(".e-cat").value,cyc=Number(box.querySelector(".e-cycle").value)||0;
   if(!nm)return toast("O nome não pode ficar vazio");
   if(data.items.some(x=>x!==i&&norm(x.name)===norm(nm)))return toast("Já existe um item com esse nome");
-  const old=i.name;i.name=nm;i.cat=cat;editId=null;(data.aliases||[]).forEach(a=>{if(a.name===old)a.name=nm});data.prices.forEach(p=>{if(p.name===old)p.name=nm});logActivity("Editou item",old===nm?nm:old+" → "+nm);save();toast("Item atualizado")});
+  const old=i.name;i.name=nm;i.cat=cat;i.cycle=cyc;editId=null;(data.aliases||[]).forEach(a=>{if(a.name===old)a.name=nm});data.prices.forEach(p=>{if(p.name===old)p.name=nm});
+  logActivity("Editou item",old===nm?nm:old+" → "+nm);save();toast("Item atualizado")});
+}
+let hideDone=LS('compras_hide',false);
+function renderList(shown){
+ const q=document.getElementById("search").value,sf=(storeFilter?shown.filter(i=>data.prices.some(p=>norm(p.name)===norm(i.name)&&norm(displayStore(p.store))===norm(storeFilter))):shown).filter(i=>!hideDone||!i.checked);
+ document.getElementById("list").innerHTML=[...categories,...new Set(sf.map(i=>i.cat).filter(c=>!categories.includes(c)))].map(cat=>{const arr=sf.filter(i=>i.cat===cat);if(!arr.length)return"";
+  const pend=arr.filter(i=>!i.checked).length,op=q?true:(cat in openCats?openCats[cat]:pend>0);
+  return`<div class="category"><h3><button class="cat-toggle" data-cat-toggle="${cat}" aria-expanded="${op}"><span>${op?'▾':'▸'} ${cat}</span><small>${pend} pendente(s) de ${arr.length}</small></button></h3>${op?arr.map(rowHTML).join(""):""}</div>`}).join("")||(hideDone?'<div class="empty">🎉 Nenhum item pendente: todos estão marcados.</div>':'<div class="empty">Nenhum item.</div>');
+ document.getElementById("hideDone").textContent=hideDone?"👁 Mostrar marcados":"🙈 Ocultar marcados";
+ document.querySelectorAll("[data-cat-toggle]").forEach(b=>b.onclick=()=>{openCats[b.dataset.catToggle]=b.getAttribute("aria-expanded")!=="true";localStorage.setItem('compras_open',JSON.stringify(openCats));render()});
+ bindEdits();
  document.getElementById("storeFilter").innerHTML='<option value="">Todas as lojas</option>'+storesList().map(t=>`<option ${t===storeFilter?'selected':''}>${esc(t)}</option>`).join("");
  document.getElementById("storeList").innerHTML=storesList().map(t=>`<option value="${esc(t)}">`).join("");
+}
+let openP=null,regQ='';
+function linesOf(g){return data.prices.filter(p=>!p.del&&(p.grp||(p.date+'|'+norm(p.store)))===g)}
+function rmLine(p){if(p.sent&&p.pid&&window.cloudOn?.())p.del=1;else data.prices.splice(data.prices.indexOf(p),1)}
+function renderRegistry(){
+ const el=document.getElementById('panel-registry');if(!el)return;
+ const raws=[...new Set(data.prices.map(p=>(p.store||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+ el.innerHTML=`<h2>Mercados</h2><p class="note">Defina um nome amigável para cada mercado. O nome impresso na nota continua guardado e é convertido automaticamente nas próximas notas.</p>${raws.map((r,k)=>`<div class="row" style="margin:6px 0;flex-wrap:wrap"><div style="flex:1 1 160px"><small class="note">Na nota: ${esc(r)}</small><input class="st-in" data-k="${k}" value="${esc(displayStore(r))}" style="width:100%"></div><button class="small primary" data-stsave="${k}">Salvar</button></div>`).join('')||'<div class="empty">Os mercados aparecem aqui depois da primeira compra registrada.</div>'}
+ <h2 style="margin-top:18px">Categorias</h2>${categories.map((c,k)=>`<div class="row" style="margin:6px 0"><input class="cat-in" data-k="${k}" value="${esc(c)}" ${c==='Outros'?'disabled':''} style="flex:1"><small>${data.items.filter(i=>i.cat===c).length} itens</small>${c==='Outros'?'':`<button class="small primary" data-catsave="${k}">Salvar</button>`}</div>`).join('')}
+ <div class="row" style="margin-top:8px"><input id="newCat" placeholder="Nova categoria" style="flex:1"><button class="small" id="newCatBtn">Adicionar</button></div>
+ <h2 style="margin-top:18px">Itens e conversões das notas</h2><input id="regQ" placeholder="Buscar item ou descrição da nota" value="${esc(regQ)}" style="width:100%"><div id="regItems"></div>`;
+ el.querySelectorAll('[data-stsave]').forEach(b=>b.onclick=()=>{const raw=raws[Number(b.dataset.stsave)],v=el.querySelector(`.st-in[data-k="${b.dataset.stsave}"]`).value.trim();if(!v)return toast('Informe o nome');setStore(raw,v);logActivity('Renomeou mercado',raw+' → '+v);save();toast('Mercado atualizado')});
+ el.querySelectorAll('[data-catsave]').forEach(b=>b.onclick=()=>{const k=Number(b.dataset.catsave),from=categories[k],to=el.querySelector(`.cat-in[data-k="${k}"]`).value.trim();
+  if(!to||to===from)return;if(categories.some(c=>norm(c)===norm(to)))return toast('Já existe uma categoria com esse nome');
+  categories[k]=to;data.items.forEach(i=>{if(i.cat===from)i.cat=to});openCats[to]=openCats[from];data.catOps.push({op:'rename',from,to});logActivity('Renomeou categoria',from+' → '+to);save();toast('Categoria atualizada')});
+ el.querySelector('#newCatBtn').onclick=()=>{const v=el.querySelector('#newCat').value.trim();if(!v)return;if(categories.some(c=>norm(c)===norm(v)))return toast('Essa categoria já existe');
+  const k=categories.indexOf('Outros');categories.splice(k<0?categories.length:k,0,v);data.catOps.push({op:'add'});logActivity('Criou categoria',v);save();toast('Categoria criada')};
+ el.querySelector('#regQ').oninput=e=>{regQ=e.target.value;renderRegItems()};
+ renderRegItems();
+}
+function renderRegItems(){
+ const box=document.getElementById('regItems');if(!box)return;const q=norm(regQ);
+ const als=i=>(data.aliases||[]).filter(a=>a.name===i.name&&!a.del);
+ box.innerHTML=[...categories,...new Set(data.items.map(i=>i.cat).filter(c=>!categories.includes(c)))].map(cat=>{
+  const arr=data.items.filter(i=>i.cat===cat&&(!q||norm(i.name).includes(q)||als(i).some(a=>norm(a.text).includes(q))));if(!arr.length)return'';
+  return`<div class="category"><h3>${esc(cat)}</h3>${arr.map(i=>editId===i.id?editForm(i):`<div class="item"><div class="name"><b data-edit="${i.id}" style="cursor:pointer">${esc(i.name)}</b>${i.cycle?`<small>Repõe a cada ${i.cycle} dias</small>`:''}${als(i).map(a=>`<small class="alias">Na nota: ${esc(a.text)} <button class="small ghost" data-aldel="${esc(a.norm)}" title="Remover conversão">✕</button></small>`).join('')}</div><div class="item-actions"><button class="small ghost" data-edit="${i.id}" title="Editar">✎</button><button class="small ghost" data-regdel="${i.id}" title="Excluir">🗑</button></div></div>`).join('')}</div>`}).join('')||'<div class="empty">Nenhum item.</div>';
+ bindEdits();
+ box.querySelectorAll('[data-aldel]').forEach(b=>b.onclick=()=>{const a=data.aliases.find(x=>x.norm===b.dataset.aldel);if(!a)return;if(!a.sent)data.aliases=data.aliases.filter(x=>x!==a);else{a.del=1;a.sent=1}save();toast('Conversão removida')});
+ box.querySelectorAll('[data-regdel]').forEach(b=>b.onclick=()=>{const it=data.items.find(x=>String(x.id)===b.dataset.regdel);if(!it||!confirm('Excluir "'+it.name+'" da lista? O histórico de preços é mantido.'))return;data.items=data.items.filter(x=>x!==it);logActivity('Excluiu',it.name);save()});
+}
+function renderPurchases(){
+ const box=document.getElementById('purchHist');if(!box)return;
+ const m=new Map();data.prices.filter(p=>!p.del).forEach(p=>{const g=p.grp||(p.date+'|'+norm(p.store));if(!m.has(g))m.set(g,[]);m.get(g).push(p)});
+ const gs=[...m.entries()].map(([g,ls])=>({g,ls,date:ls[0].date,store:ls[0].store})).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,12);
+ box.innerHTML=gs.map(x=>{const tot=x.ls.reduce((s,p)=>s+lineTot(p),0),open=openP===x.g;
+  return`<div class="item" style="flex-wrap:wrap"><div class="name"><b>${dateBR(x.date)} · ${esc(displayStore(x.store)||'Sem mercado')}</b><small>${x.ls.length} itens · ${money(tot)}</small></div><button class="small" data-pg="${esc(x.g)}">${open?'Fechar':'Ver / editar'}</button>${open?`<div style="width:100%;margin-top:8px"><div class="row" style="flex-wrap:wrap"><input class="pm-store" list="storeList" value="${esc(displayStore(x.store))}" placeholder="Mercado" style="flex:1 1 140px"><input class="pm-date" type="date" value="${x.date}"><button class="small primary" data-pmeta="${esc(x.g)}">Salvar compra</button><button class="small ghost" data-pdel="${esc(x.g)}">Excluir compra</button></div><div style="overflow-x:auto"><table><tr><th>Item</th><th>Qtd</th><th>Preço un.</th><th></th></tr>${x.ls.map(p=>{const k=data.prices.indexOf(p);return`<tr><td><input list="products" data-lf="name" data-k="${k}" value="${esc(p.name)}" style="min-width:140px">${p.receiptName&&norm(p.receiptName)!==norm(p.name)?`<small class="note">Na nota: ${esc(p.receiptName)}</small>`:''}</td><td><input type="number" step="any" data-lf="qty" data-k="${k}" value="${p.qty||1}" style="width:62px"></td><td><input type="number" step=".01" data-lf="value" data-k="${k}" value="${p.value}" style="width:78px"></td><td><button class="small ghost" data-ldel="${k}">✕</button></td></tr>`}).join('')}</table></div></div>`:''}</div>`}).join('')||'<div class="empty">Nenhuma compra registrada ainda.</div>';
+ box.querySelectorAll('[data-pg]').forEach(b=>b.onclick=()=>{openP=openP===b.dataset.pg?null:b.dataset.pg;render()});
+ box.querySelectorAll('[data-pmeta]').forEach(b=>b.onclick=()=>{const g=b.dataset.pmeta,row=b.closest('.item'),st=row.querySelector('.pm-store').value.trim(),dt=row.querySelector('.pm-date').value;if(!dt)return toast('Informe a data');
+  linesOf(g).forEach(p=>{p.store=st;p.date=dt;p.meta=1});openP=null;logActivity('Editou compra',(st||'Sem mercado')+' · '+dateBR(dt));save();toast('Compra atualizada')});
+ box.querySelectorAll('[data-pdel]').forEach(b=>b.onclick=()=>{const g=b.dataset.pdel,ls=linesOf(g);if(!confirm('Excluir esta compra com '+ls.length+' itens do histórico?'))return;ls.forEach(rmLine);openP=null;logActivity('Excluiu compra',ls.length+' itens');save();toast('Compra excluída')});
+ box.querySelectorAll('[data-ldel]').forEach(b=>b.onclick=()=>{const p=data.prices[Number(b.dataset.ldel)];if(!p||!confirm('Remover "'+p.name+'" desta compra?'))return;rmLine(p);save()});
+ box.querySelectorAll('[data-lf]').forEach(inp=>inp.onchange=()=>{const p=data.prices[Number(inp.dataset.k)],f=inp.dataset.lf;if(!p)return;
+  if(f==='name'){const v=inp.value.trim();if(!v)return;let it=data.items.find(x=>norm(x.name)===norm(v));if(!it)data.items.push(it={id:uid(),name:v,cat:'Outros',checked:true});
+   if(p.receiptName){const an=aliasNorm(p.receiptName);data.aliases=(data.aliases||[]).filter(a=>a.norm!==an);data.aliases.push({text:p.receiptName,norm:an,name:it.name,sent:0})}
+   p.name=it.name;p.dirty=1;logActivity('Reassociou preço',it.name)}
+  else{const n=Number(inp.value);if(!(n>0))return toast('Valor inválido');p[f]=n;p.edit=1;p.tot=null}
+  save()});
 }
 function render(){
  const q=document.getElementById("search").value.toLowerCase();
@@ -386,7 +446,7 @@ function render(){
  let latest=[...data.prices].sort((a,b)=>b.date.localeCompare(a.date))[0];document.getElementById("lastSpend").textContent=latest?money(data.prices.filter(p=>p.date===latest.date).reduce((t,p)=>t+p.value*(p.qty||1),0)):"R$ 0,00";
  document.getElementById("products").innerHTML=data.items.map(i=>`<option value="${esc(i.name)}">`).join("");
  let hist=[...data.prices].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,15);
- document.getElementById("history").innerHTML=hist.length?`<table><tr><th>Produto</th><th>Data</th><th>Loja</th><th>Preço</th></tr>${hist.map(p=>{const k=data.prices.indexOf(p);const nm=reIdx===k?`<input id="reInput" list="products" value="${esc(p.name)}" style="width:100%"><button class="small primary" data-reok="${k}">✓</button><button class="small ghost" data-reno="1">✕</button>`:`${esc(p.name)} <button class="small ghost" data-re="${k}" title="Revisar associação">✎</button>${p.receiptName&&norm(p.receiptName)!==norm(p.name)?`<small class="note">Na nota: ${esc(p.receiptName)}</small>`:""}`;return`<tr><td>${nm}</td><td>${dateBR(p.date)}</td><td title="${esc(p.store||"")}">${esc(sigla(p.store))}</td><td>${money(p.value)}</td></tr>`}).join("")}</table>`:'<div class="empty">Nenhum preço registrado.</div>';
+ document.getElementById("history").innerHTML=hist.length?`<table><tr><th>Produto</th><th>Data</th><th>Loja</th><th>Preço</th></tr>${hist.map(p=>{const k=data.prices.indexOf(p);const nm=reIdx===k?`<input id="reInput" list="products" value="${esc(p.name)}" style="width:100%"><button class="small primary" data-reok="${k}">✓</button><button class="small ghost" data-reno="1">✕</button>`:`${esc(p.name)} <button class="small ghost" data-re="${k}" title="Revisar associação">✎</button>${p.receiptName&&norm(p.receiptName)!==norm(p.name)?`<small class="note">Na nota: ${esc(p.receiptName)}</small>`:""}`;return`<tr><td>${nm}</td><td>${dateBR(p.date)}</td><td title="${esc(displayStore(p.store)||"")}">${esc(sigla(displayStore(p.store)))}</td><td>${money(p.value)}</td></tr>`}).join("")}</table>`:'<div class="empty">Nenhum preço registrado.</div>';
  document.querySelectorAll("[data-re]").forEach(b=>b.onclick=()=>{reIdx=Number(b.dataset.re);render();document.getElementById("reInput")?.focus()});
  document.querySelectorAll("[data-reno]").forEach(b=>b.onclick=()=>{reIdx=-1;render()});
  document.querySelectorAll("[data-reok]").forEach(b=>b.onclick=()=>{const p=data.prices[Number(b.dataset.reok)],v=document.getElementById("reInput").value.trim();if(!v)return;
@@ -394,14 +454,16 @@ function render(){
   const old=p.name;p.name=it.name;p.dirty=1;reIdx=-1;if(p.receiptName){const an=aliasNorm(p.receiptName);data.aliases=(data.aliases||[]).filter(a=>a.norm!==an);data.aliases.push({text:p.receiptName,norm:an,name:it.name,sent:0})}logActivity("Reassociou preço",old+" → "+it.name);save();toast("Associação atualizada")});
  let activity=data.activity||[];
  document.getElementById("activity").innerHTML=activity.length?activity.slice(0,8).map(a=>`<div class="item"><div class="name"><b>${esc(a.actor)}</b> ${esc(a.action.toLowerCase())}<small>${esc(a.item)} · ${new Date(a.at).toLocaleString("pt-BR")}</small></div></div>`).join(""):'<div class="empty">Nenhuma atividade registrada.</div>';
- document.getElementById("actorName").value=(data.profile&&data.profile.actor)||"";
- document.getElementById("listName").value=(data.profile&&data.profile.listName)||"Compras da família";
- renderReplenishment();
+ if(document.activeElement!==document.getElementById("actorName"))document.getElementById("actorName").value=(data.profile&&data.profile.actor)||"";
+ if(document.activeElement!==document.getElementById("listName"))document.getElementById("listName").value=(data.profile&&data.profile.listName)||"Compras da família";
+ renderReplenishment();renderRegistry();renderPurchases();
 }
 function norm(s){return (s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim()}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 document.getElementById("search").oninput=render;
 document.getElementById("forecastWindow").onchange=renderReplenishment;
+document.getElementById("saveProfile").onclick=()=>{data.profile=data.profile||{};data.profile.actor=document.getElementById("actorName").value.trim();data.profile.listName=document.getElementById("listName").value.trim()||"Compras da família";window.saveActorName?.(data.profile.actor);save();toast("Identificação salva")};
+document.getElementById("hideDone").onclick=()=>{hideDone=!hideDone;localStorage.setItem('compras_hide',JSON.stringify(hideDone));render()};
 document.getElementById("curStore").value=curStore;
 document.getElementById("curStore").oninput=e=>{curStore=e.target.value.trim();localStorage.setItem('compras_store',curStore);render()};
 document.getElementById("storeFilter").onchange=e=>{storeFilter=e.target.value;render()};
@@ -450,6 +512,7 @@ render();
   ['panel-prices','Preços','Registro, análise e histórico de preços.'],
   ['panel-family','Família','Contas, compartilhamento e sincronização familiar.'],
   ['panel-activity','Atividade recente','Histórico de alterações feitas na lista.'],
+  ['panel-registry','Cadastros','Itens, categorias, mercados e conversões das notas fiscais.'],
   ['panel-tools','Notas fiscais e dados','Importação de notas, backup e transferência de dados.']
  ];
  const summaryCard=$id('totalItems')?.closest('.panel');
@@ -462,7 +525,8 @@ render();
   'panel-prices':$id('panel-prices'),
   'panel-family':$id('panel-family'),
   'panel-activity':$id('panel-activity'),
-  'panel-tools':toolsCard
+  'panel-tools':toolsCard,
+  'panel-registry':$id('panel-registry')
  };
  // Remove o conteúdo antigo do main e cria as páginas.
  main.innerHTML='';
@@ -484,6 +548,8 @@ render();
  put('panel-family',nodes['panel-family']);
  put('panel-activity',nodes['panel-activity']);
  put('panel-tools',toolsCard);
+ put('panel-tools',$id('panel-purchases'));
+ put('panel-registry',nodes['panel-registry']);
  function go(target){
    if(!$id('view-'+target))return;
    document.querySelectorAll('.app-page').forEach(p=>p.classList.toggle('active',p.id==='view-'+target));

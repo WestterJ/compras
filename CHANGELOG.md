@@ -4,3 +4,4 @@
 - V7: login, sincronização com shopping_*, família, IA de notas.
 - V6 e anteriores: app local.
 - V12: tabela de conversão (shopping_product_aliases) usada na associação das notas; renomear item preserva histórico; notas de 30/10 e 06/11 carregadas no banco.
+- V13: edição por toque, ocultar marcados, menu Cadastros (mercados, categorias, itens, conversões), últimas compras editáveis, ciclo de reposição editável + adicionar todas as sugestões, nome da identificação salvo.
