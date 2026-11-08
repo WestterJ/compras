@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#003a70">
-<title>Minha Lista de Compras | V11</title>
+<title>Minha Lista de Compras | V12</title>
 <style>
 :root{--bg:#fff9c9;--paper:#fffdf0;--ink:#514d38;--muted:#928b68;--line:#e8dfaa;--accent:#c5a94c;--green:#66835c;--red:#b85b4b;--shadow:0 8px 24px #766b3215}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
@@ -101,7 +101,7 @@ html.dark .auth-card,html.dark .receipt-drop{background:#14263b;border-color:#31
 </head>
 <body>
 <header class="app-header">
- <div class="header-left"><button id="mobileMenu" class="mobile-menu-btn" aria-label="Abrir menu">☰</button><div class="brand-mark">🛒</div><div class="brand-copy"><h1>Minha Lista de Compras</h1><small>Versão V11 · Compras em família</small></div></div>
+ <div class="header-left"><button id="mobileMenu" class="mobile-menu-btn" aria-label="Abrir menu">☰</button><div class="brand-mark">🛒</div><div class="brand-copy"><h1>Minha Lista de Compras</h1><small>Versão V12 · Compras em família</small></div></div>
  <div class="header-actions"><span class="cloud-pill" id="headerSync">● <span>Modo local</span></span><button id="themeToggle" class="theme-toggle" aria-label="Alternar tema" title="Alternar tema">◐</button></div>
 </header>
 <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
@@ -337,6 +337,7 @@ function renderReplenishment(){
 }
 const LS=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}};
 let openCats=LS('compras_open',{}),curStore=localStorage.getItem('compras_store')||'',storeFilter='',editId=null,reIdx=-1;
+function aliasNorm(s){return norm(s).replace(/\s+/g,' ').trim()}
 function sigla(s){s=(s||'').trim();if(!s)return'';const w=s.split(/\s+/).filter(x=>x.length>2);return(w.length>1?w.map(x=>x[0]).join('').slice(0,3):s.slice(0,4)).toUpperCase()}
 function storesList(){return[...new Set(data.prices.map(p=>(p.store||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'))}
 function priceInfo(i){
@@ -364,7 +365,7 @@ function renderList(shown){
  document.querySelectorAll("[data-editok]").forEach(b=>b.onclick=()=>{const i=data.items.find(x=>String(x.id)===b.dataset.editok),nm=document.getElementById("editName").value.trim(),cat=document.getElementById("editCat").value;
   if(!nm)return toast("O nome não pode ficar vazio");
   if(data.items.some(x=>x!==i&&norm(x.name)===norm(nm)))return toast("Já existe um item com esse nome");
-  const old=i.name;i.name=nm;i.cat=cat;editId=null;logActivity("Editou item",old===nm?nm:old+" → "+nm);save();toast("Item atualizado")});
+  const old=i.name;i.name=nm;i.cat=cat;editId=null;(data.aliases||[]).forEach(a=>{if(a.name===old)a.name=nm});data.prices.forEach(p=>{if(p.name===old)p.name=nm});logActivity("Editou item",old===nm?nm:old+" → "+nm);save();toast("Item atualizado")});
  document.getElementById("storeFilter").innerHTML='<option value="">Todas as lojas</option>'+storesList().map(t=>`<option ${t===storeFilter?'selected':''}>${esc(t)}</option>`).join("");
  document.getElementById("storeList").innerHTML=storesList().map(t=>`<option value="${esc(t)}">`).join("");
 }
@@ -390,7 +391,7 @@ function render(){
  document.querySelectorAll("[data-reno]").forEach(b=>b.onclick=()=>{reIdx=-1;render()});
  document.querySelectorAll("[data-reok]").forEach(b=>b.onclick=()=>{const p=data.prices[Number(b.dataset.reok)],v=document.getElementById("reInput").value.trim();if(!v)return;
   let it=data.items.find(x=>norm(x.name)===norm(v));if(!it)data.items.push(it={id:uid(),name:v,cat:"Outros",checked:true});
-  const old=p.name;p.name=it.name;p.dirty=1;reIdx=-1;logActivity("Reassociou preço",old+" → "+it.name);save();toast("Associação atualizada")});
+  const old=p.name;p.name=it.name;p.dirty=1;reIdx=-1;if(p.receiptName){const an=aliasNorm(p.receiptName);data.aliases=(data.aliases||[]).filter(a=>a.norm!==an);data.aliases.push({text:p.receiptName,norm:an,name:it.name,sent:0})}logActivity("Reassociou preço",old+" → "+it.name);save();toast("Associação atualizada")});
  let activity=data.activity||[];
  document.getElementById("activity").innerHTML=activity.length?activity.slice(0,8).map(a=>`<div class="item"><div class="name"><b>${esc(a.actor)}</b> ${esc(a.action.toLowerCase())}<small>${esc(a.item)} · ${new Date(a.at).toLocaleString("pt-BR")}</small></div></div>`).join(""):'<div class="empty">Nenhuma atividade registrada.</div>';
  document.getElementById("actorName").value=(data.profile&&data.profile.actor)||"";

@@ -1,0 +1,19 @@
+MINHA LISTA DE COMPRAS V12  (substitui a V11; arquivos: index.html + compras-supabase.js)
+
+NOVO NA V12
+- Tabela de conversão no Supabase: shopping_product_aliases (descrição impressa na nota -> produto da lista).
+- Ao analisar uma nota com IA, o app consulta primeiro a conversão: o que já foi aprendido associa sozinho (✓).
+- Ao salvar uma nota, cada associação confirmada vira conversão; corrigir no histórico (✎) atualiza a conversão.
+- Renomear um item passa a renomear o produto no banco, preservando histórico de preços e conversões.
+
+DADOS JÁ INCLUÍDOS NO BANCO (pelo Claude, a partir das fotos)
+- NFC-e 30/10/2026 19:26, Padovani e Pedroso: 57 itens, R$ 769,17 (substituiu a compra parcial "Nota enviada" de R$ 106,72, que era um subconjunto desta nota).
+- NFC-e 06/11/2026 18:09, Padovani e Pedroso: 56 itens, R$ 711,67.
+- 68 conversões cadastradas e 19 itens novos criados na lista.
+
+PARA REVISAR NO HISTÓRICO (associação por aproximação)
+- "PAO WICKBOLD DO FORNO 100%" -> Pão integral 100% nutrição Do Forno (também existe "Pão Wickbold do Forno").
+- "PAO PULMAN FORMA 480G" -> Pão de forma Amanda (marca diferente).
+- "CREME BOZZANO REFRESCANT" -> criado como Creme de barbear Bozzano; "FILTRO MOINHO FINO" e "VERDE CAMPO LACFREE ZIGRED" têm texto parcialmente ilegível na foto.
+
+EDGE FUNCTION (ainda pendente): ver LEIA-ME_V11.txt (modo "nota" em dynamic-service).

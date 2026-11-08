@@ -1,10 +1,11 @@
-/* Minha Lista de Compras V11 — Supabase (projeto "Bases"): login, sincronização, família e IA de notas.
+/* Minha Lista de Compras V12 — Supabase (projeto "Bases"): login, sincronização, família e IA de notas.
    Sem login o app segue em modo local (localStorage). A chave abaixo é a publishable (pública); nunca use a service_role. */
 (()=>{
 const SB_URL='https://ytsabhbkywymtevkeokg.supabase.co',SB_KEY='sb_publishable_cyIolmmdF5zKN0rAOJQOXg_ECcSq7z6';
 const $=id=>document.getElementById(id);
 const sb=window.supabase?.createClient(SB_URL,SB_KEY);
 let me=null,listId=null,role=null,cats={},snap=null,lists=[],members=[],busy=Promise.resolve(),timer=null,dirty=false,aiOk=false,notas=[];
+const AL=()=>data.aliases||(data.aliases=[]);
 const isUUID=s=>/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(s||'');
 const persist=()=>localStorage.setItem('compras_v2',JSON.stringify(data));
 const setSync=(t,pill)=>{$('syncStatus').textContent=t;$('headerSync').lastElementChild.textContent=pill||t};
@@ -36,16 +37,18 @@ async function pull(wanted){
   if(!localStorage.compras_backup_pre_cloud)localStorage.compras_backup_pre_cloud=JSON.stringify(data);
   await ensureCats();
   const cn=Object.fromEntries(Object.entries(cats).map(([n,i])=>[i,n]));
-  const [it,pu,ac,pr]=await Promise.all([
+  const [it,pu,ac,pr,al]=await Promise.all([
     sb.from('shopping_items').select('id,name,is_checked,category_id,product_id').eq('list_id',listId).order('created_at'),
     sb.from('shopping_purchases').select('id,store_name,purchased_at,total_amount,shopping_purchase_items(id,product_id,unit_price,total_price,quantity,unit,product_name)').eq('list_id',listId).order('purchased_at',{ascending:false}).limit(500),
     sb.from('shopping_activity').select('action,details,created_at').eq('list_id',listId).order('created_at',{ascending:false}).limit(100),
-    sb.from('shopping_products').select('id,name').eq('list_id',listId)]);
-  for(const r of [it,pu,ac,pr])if(r.error)throw r.error;
+    sb.from('shopping_products').select('id,name').eq('list_id',listId),
+    sb.from('shopping_product_aliases').select('alias,alias_norm,product_id').eq('list_id',listId)]);
+  for(const r of [it,pu,ac,pr,al])if(r.error)throw r.error;
   const pn=Object.fromEntries(pr.data.map(x=>[x.id,x.name]));
   await loadMembers();
   const ld=d=>{const x=new Date(d);return new Date(x-x.getTimezoneOffset()*6e4).toISOString().slice(0,10)};
-  data.items=it.data.map(r=>({id:r.id,name:r.name,cat:cn[r.category_id]||'Outros',checked:r.is_checked}));
+  data.items=it.data.map(r=>({id:r.id,name:r.name,cat:cn[r.category_id]||'Outros',checked:r.is_checked,pid:r.product_id}));
+  data.aliases=al.data.map(a=>({text:a.alias,norm:a.alias_norm,name:pn[a.product_id]||'',sent:1})).filter(a=>a.name);
   data.prices=pu.data.flatMap(p=>p.shopping_purchase_items.map(i=>({name:pn[i.product_id]||i.product_name,receiptName:i.product_name,pid:i.id,value:Number(i.unit_price??i.total_price),qty:Number(i.quantity)||1,unit:i.unit,date:ld(p.purchased_at),store:p.store_name||'',grp:p.id,sent:1})));
   data.activity=ac.data.map(a=>({action:a.action,item:a.details?.item||'',actor:a.details?.actor||'Alguém',at:a.created_at,sent:1}));
   data.profile.listName=lists.find(l=>l.id===listId).name;
@@ -67,11 +70,13 @@ async function doPush(){
     const {data:pr,error}=await sb.from('shopping_products').upsert(nw.map(i=>({list_id:listId,name:i.name,category_id:cats[i.cat]||null})),{onConflict:'list_id,name'}).select('id,name');
     if(error)throw error;const pm=Object.fromEntries(pr.map(p=>[p.name,p.id]));
     const {error:e2}=await sb.from('shopping_items').insert(nw.map(i=>({id:i.id,list_id:listId,product_id:pm[i.name],category_id:cats[i.cat]||null,name:i.name,is_checked:!!i.checked,added_by:me.id,checked_by:i.checked?me.id:null,checked_at:i.checked?now:null})));
-    if(e2)throw e2;nw.forEach(i=>snap.items.set(i.id,{checked:!!i.checked,name:i.name,cat:i.cat}));
+    if(e2)throw e2;nw.forEach(i=>{i.pid=pm[i.name];snap.items.set(i.id,{checked:!!i.checked,name:i.name,cat:i.cat})});
   }
   for(const i of data.items.filter(i=>{const o=snap.items.get(i.id);return o&&(o.name!==i.name||o.cat!==i.cat)})){
-    const pm=await productIds([i.name]);
-    const {error}=await sb.from('shopping_items').update({name:i.name,category_id:cats[i.cat]||null,product_id:pm[i.name],updated_at:now}).eq('id',i.id);
+    let pid=i.pid;
+    if(pid){const {error}=await sb.from('shopping_products').update({name:i.name,category_id:cats[i.cat]||null}).eq('id',pid);if(error){if(error.code==='23505')pid=null;else throw error}}
+    if(!pid){const pm=await productIds([i.name]);pid=i.pid=pm[i.name]}
+    const {error}=await sb.from('shopping_items').update({name:i.name,category_id:cats[i.cat]||null,product_id:pid,updated_at:now}).eq('id',i.id);
     if(error)throw error;Object.assign(snap.items.get(i.id),{name:i.name,cat:i.cat});
   }
   const on=[],off=[];
@@ -97,6 +102,12 @@ async function doPush(){
   for(const p of data.prices.filter(x=>x.sent&&x.dirty&&x.pid)){
     const pm=await productIds([p.name]);
     const {error}=await sb.from('shopping_purchase_items').update({product_id:pm[p.name]}).eq('id',p.pid);if(error)throw error;p.dirty=0;
+  }
+  const ua=AL().filter(a=>!a.sent);
+  if(ua.length){
+    const pm=await productIds(ua.map(a=>a.name));
+    const {error}=await sb.from('shopping_product_aliases').upsert(ua.map(a=>({list_id:listId,product_id:pm[a.name],alias:a.text,alias_norm:a.norm,created_by:me.id})),{onConflict:'list_id,alias_norm'});
+    if(error)throw error;ua.forEach(a=>a.sent=1);
   }
   const na=data.activity.filter(a=>!a.sent);
   if(na.length){const {error}=await sb.from('shopping_activity').insert([...na].reverse().map(a=>({list_id:listId,actor_id:me.id,action:a.action,details:{item:a.item,actor:a.actor}})));if(error)throw error;na.forEach(a=>a.sent=1)}
@@ -211,6 +222,8 @@ $('analyzeReceiptPhotos').onclick=async()=>{
 const tk=s=>[...new Set(norm(s).split(/[^a-z0-9]+/).filter(w=>w.length>2))];
 const tc=s=>s.toLowerCase().replace(/(^|\s)\S/g,c=>c.toUpperCase());
 function match(name){
+  const an=aliasNorm(name),hit=AL().find(x=>x.norm===an),known=hit&&data.items.find(i=>i.name===hit.name);
+  if(known)return{c:[{i:known,s:1}],st:'ok',alias:true};
   const a=tk(name),en=norm(name);
   const c=data.items.map(i=>{if(norm(i.name)===en)return{i,s:1};const b=tk(i.name);if(!a.length||!b.length)return{i,s:0};
     return{i,s:a.filter(x=>b.some(y=>x.startsWith(y)||y.startsWith(x))).length/Math.sqrt(a.length*b.length)}}).filter(x=>x.s>=.34).sort((x,y)=>y.s-x.s).slice(0,4);
@@ -219,7 +232,7 @@ function match(name){
 function renderNotas(){
   $('receiptExtracted').innerHTML=notas.map((n,k)=>{n.itens.forEach(i=>i.m=match(i.nome));
     return `<div class="panel" style="box-shadow:none;margin:10px 0 0"><div class="formgrid"><div><label>Supermercado</label><input data-n="${k}" data-f="loja" value="${esc(n.loja)}" style="width:100%"></div><div><label>Data</label><input type="date" data-n="${k}" data-f="data" value="${n.data}" style="width:100%"></div></div>
-    <div style="overflow-x:auto"><table><tr><th></th><th>Na nota</th><th>Associar a</th><th>Qtd</th><th>Preço un.</th></tr>${n.itens.map((i,m)=>`<tr><td><input type="checkbox" checked data-n="${k}" data-i="${m}" data-f="on"></td><td>${esc(i.nome)}${i.m.st==='doubt'?' <b class="bad">⚠</b>':''}</td><td><select data-n="${k}" data-i="${m}" data-f="assoc" style="max-width:190px">${i.m.st==='doubt'?'<option value="?">Confirme o item…</option>':''}${i.m.c.map((x,q)=>`<option value="${x.i.id}" ${i.m.st==='ok'&&q===0?'selected':''}>${esc(x.i.name)}</option>`).join('')}<option value="new" ${i.m.st==='new'?'selected':''}>➕ Novo: ${esc(tc(i.nome))}</option></select></td><td><input type="number" step="any" data-n="${k}" data-i="${m}" data-f="quantidade" value="${i.quantidade||1}" style="width:60px"></td><td><input type="number" step=".01" data-n="${k}" data-i="${m}" data-f="preco_unitario" value="${i.preco_unitario}" style="width:80px"></td></tr>`).join('')}</table></div></div>`}).join('')+'<p class="note">⚠ = dúvida: escolha o item certo ou crie um novo antes de salvar. Depois, dá para revisar no histórico.</p><button class="primary" id="saveNotas" style="width:100%;margin-top:6px">Salvar notas no histórico</button>';
+    <div style="overflow-x:auto"><table><tr><th></th><th>Na nota</th><th>Associar a</th><th>Qtd</th><th>Preço un.</th></tr>${n.itens.map((i,m)=>`<tr><td><input type="checkbox" checked data-n="${k}" data-i="${m}" data-f="on"></td><td>${esc(i.nome)}${i.m.st==='doubt'?' <b class="bad">⚠</b>':''}${i.m.alias?' <small title="Conversão já aprendida">✓</small>':''}</td><td><select data-n="${k}" data-i="${m}" data-f="assoc" style="max-width:190px">${i.m.st==='doubt'?'<option value="?">Confirme o item…</option>':''}${i.m.c.map((x,q)=>`<option value="${x.i.id}" ${i.m.st==='ok'&&q===0?'selected':''}>${esc(x.i.name)}</option>`).join('')}<option value="new" ${i.m.st==='new'?'selected':''}>➕ Novo: ${esc(tc(i.nome))}</option></select></td><td><input type="number" step="any" data-n="${k}" data-i="${m}" data-f="quantidade" value="${i.quantidade||1}" style="width:60px"></td><td><input type="number" step=".01" data-n="${k}" data-i="${m}" data-f="preco_unitario" value="${i.preco_unitario}" style="width:80px"></td></tr>`).join('')}</table></div></div>`}).join('')+'<p class="note">⚠ = dúvida: escolha o item certo ou crie um novo antes de salvar. Depois, dá para revisar no histórico.</p><button class="primary" id="saveNotas" style="width:100%;margin-top:6px">Salvar notas no histórico</button>';
   $('saveNotas').onclick=saveNotas;
 }
 function saveNotas(){
@@ -235,6 +248,7 @@ function saveNotas(){
       let item=as==='new'?null:data.items.find(i=>String(i.id)===as);
       if(!item)data.items.push(item={id:uid(),name:tc(it.nome),cat:'Outros',checked:true});
       item.checked=true;
+      const an=aliasNorm(it.nome);data.aliases=AL().filter(x=>x.norm!==an);data.aliases.push({text:it.nome,norm:an,name:item.name,sent:0});
       data.prices.push({name:item.name,receiptName:it.nome,value:v,qty:q,date:dt,store:loja,ocr:true,grp});c++;
     });
     if(c){logActivity('Importou nota fiscal',(loja||'Nota')+' · '+c+' itens');total+=c}
