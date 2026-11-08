@@ -1,4 +1,4 @@
-/* Minha Lista de Compras V13 — Supabase (projeto "Bases"): login, sincronização, família e IA de notas.
+/* Minha Lista de Compras V14 — Supabase (projeto "Bases"): login, sincronização, família e IA de notas.
    Sem login o app segue em modo local (localStorage). A chave abaixo é a publishable (pública); nunca use a service_role. */
 (()=>{
 const SB_URL='https://ytsabhbkywymtevkeokg.supabase.co',SB_KEY='sb_publishable_cyIolmmdF5zKN0rAOJQOXg_ECcSq7z6';
@@ -44,15 +44,15 @@ async function pull(wanted){
     sb.from('shopping_purchases').select('id,store_name,purchased_at,total_amount,shopping_purchase_items(id,product_id,unit_price,total_price,quantity,unit,product_name)').eq('list_id',listId).order('purchased_at',{ascending:false}).limit(500),
     sb.from('shopping_activity').select('action,details,created_at').eq('list_id',listId).order('created_at',{ascending:false}).limit(100),
     sb.from('shopping_products').select('id,name,cycle_days').eq('list_id',listId),
-    sb.from('shopping_product_aliases').select('alias,alias_norm,product_id').eq('list_id',listId),
-    sb.from('shopping_stores').select('alias,alias_norm,name').eq('list_id',listId)]);
+    sb.from('shopping_product_aliases').select('alias,alias_norm,store_norm,store_name,product_id').eq('list_id',listId),
+    sb.from('shopping_stores').select('alias,alias_norm,name,sigla').eq('list_id',listId)]);
   for(const r of [it,pu,ac,pr,al,st])if(r.error)throw r.error;
   const pn=Object.fromEntries(pr.data.map(x=>[x.id,x.name])),pc=Object.fromEntries(pr.data.map(x=>[x.id,x.cycle_days||0]));
-  data.stores=st.data.map(s=>({alias:s.alias,norm:s.alias_norm,name:s.name,sent:1}));
+  data.stores=st.data.map(s=>({alias:s.alias,norm:s.alias_norm,name:s.name,sigla:s.sigla||'',sent:1}));
   await loadMembers();
   const ld=d=>{const x=new Date(d);return new Date(x-x.getTimezoneOffset()*6e4).toISOString().slice(0,10)};
   data.items=it.data.map(r=>({id:r.id,name:r.name,cat:cn[r.category_id]||'Outros',checked:r.is_checked,pid:r.product_id,cycle:pc[r.product_id]||0}));
-  data.aliases=al.data.map(a=>({text:a.alias,norm:a.alias_norm,name:pn[a.product_id]||'',sent:1})).filter(a=>a.name);
+  data.aliases=al.data.map(a=>({text:a.alias,norm:a.alias_norm,store:a.store_norm||'',storeName:a.store_name||'',name:pn[a.product_id]||'',sent:1})).filter(a=>a.name);
   data.prices=pu.data.flatMap(p=>p.shopping_purchase_items.map(i=>({name:pn[i.product_id]||i.product_name,receiptName:i.product_name,pid:i.id,tot:Number(i.total_price),value:Number(i.unit_price??i.total_price),qty:Number(i.quantity)||1,unit:i.unit,date:ld(p.purchased_at),store:p.store_name||'',grp:p.id,sent:1})));
   data.activity=ac.data.map(a=>({action:a.action,item:a.details?.item||'',actor:a.details?.actor||'Alguém',at:a.created_at,sent:1}));
   data.profile.listName=lists.find(l=>l.id===listId).name;
@@ -125,16 +125,18 @@ async function doPush(){
     const pm=await productIds([p.name]);
     const {error}=await sb.from('shopping_purchase_items').update({product_id:pm[p.name]}).eq('id',p.pid);if(error)throw error;p.dirty=0;
   }
+  for(const o of data.storeOps||[]){const {error}=await sb.from('shopping_product_aliases').update({store_norm:o.to,store_name:o.name}).eq('list_id',listId).eq('store_norm',o.from);if(error)throw error}
+  data.storeOps=[];
   const ua=AL().filter(a=>!a.sent);
   if(ua.length){
     const pm=await productIds(ua.map(a=>a.name));
-    const {error}=await sb.from('shopping_product_aliases').upsert(ua.map(a=>({list_id:listId,product_id:pm[a.name],alias:a.text,alias_norm:a.norm,created_by:me.id})),{onConflict:'list_id,alias_norm'});
+    const {error}=await sb.from('shopping_product_aliases').upsert(ua.map(a=>({list_id:listId,product_id:pm[a.name],alias:a.text,alias_norm:a.norm,store_norm:a.store||'',store_name:a.storeName||null,created_by:me.id})),{onConflict:'list_id,store_norm,alias_norm'});
     if(error)throw error;ua.forEach(a=>a.sent=1);
   }
   const dl=AL().filter(a=>a.del);
-  if(dl.length){const {error}=await sb.from('shopping_product_aliases').delete().eq('list_id',listId).in('alias_norm',dl.map(a=>a.norm));if(error)throw error;data.aliases=AL().filter(a=>!a.del)}
+  if(dl.length){for(const a of dl){const {error}=await sb.from('shopping_product_aliases').delete().eq('list_id',listId).eq('store_norm',a.store||'').eq('alias_norm',a.norm);if(error)throw error}data.aliases=AL().filter(a=>!a.del)}
   const us=(data.stores||[]).filter(s=>!s.sent);
-  if(us.length){const {error}=await sb.from('shopping_stores').upsert(us.map(s=>({list_id:listId,alias:s.alias,alias_norm:s.norm,name:s.name})),{onConflict:'list_id,alias_norm'});if(error)throw error;us.forEach(s=>s.sent=1)}
+  if(us.length){const {error}=await sb.from('shopping_stores').upsert(us.map(s=>({list_id:listId,alias:s.alias,alias_norm:s.norm,name:s.name,sigla:s.sigla||null})),{onConflict:'list_id,alias_norm'});if(error)throw error;us.forEach(s=>s.sent=1)}
   const na=data.activity.filter(a=>!a.sent);
   if(na.length){const {error}=await sb.from('shopping_activity').insert([...na].reverse().map(a=>({list_id:listId,actor_id:me.id,action:a.action,details:{item:a.item,actor:a.actor}})));if(error)throw error;na.forEach(a=>a.sent=1)}
   dirty=false;persist();setSync('Sincronizado às '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),'Nuvem');
@@ -250,18 +252,20 @@ $('analyzeReceiptPhotos').onclick=async()=>{
 };
 const tk=s=>[...new Set(norm(s).split(/[^a-z0-9]+/).filter(w=>w.length>2))];
 const tc=s=>s.toLowerCase().replace(/(^|\s)\S/g,c=>c.toUpperCase());
-function match(name){
-  const an=aliasNorm(name),hit=AL().find(x=>x.norm===an&&!x.del),known=hit&&data.items.find(i=>i.name===hit.name);
-  if(known)return{c:[{i:known,s:1}],st:'ok',alias:true};
+function match(name,store){
+  const an=aliasNorm(name),sk=storeKey(store),all=AL().filter(x=>x.norm===an&&!x.del),it=x=>x&&data.items.find(i=>i.name===x.name);
+  const same=all.find(x=>x.store===sk),other=all.find(x=>x.store!==sk);
+  if(it(same))return{c:[{i:it(same),s:1}],st:'ok',alias:true};
+  if(it(other))return{c:[{i:it(other),s:.9}],st:'doubt',other:true};
   const a=tk(name),en=norm(name);
   const c=data.items.map(i=>{if(norm(i.name)===en)return{i,s:1};const b=tk(i.name);if(!a.length||!b.length)return{i,s:0};
     return{i,s:a.filter(x=>b.some(y=>x.startsWith(y)||y.startsWith(x))).length/Math.sqrt(a.length*b.length)}}).filter(x=>x.s>=.34).sort((x,y)=>y.s-x.s).slice(0,4);
   return{c,st:!c.length||c[0].s<.5?'new':c[0].s>=.85?'ok':'doubt'};
 }
 function renderNotas(){
-  $('receiptExtracted').innerHTML=notas.map((n,k)=>{n.itens.forEach(i=>i.m=match(i.nome));
+  $('receiptExtracted').innerHTML=notas.map((n,k)=>{n.itens.forEach(i=>i.m=match(i.nome,n.loja));
     return `<div class="panel" style="box-shadow:none;margin:10px 0 0"><div class="formgrid"><div><label>Supermercado</label><input data-n="${k}" data-f="loja" value="${esc(displayStore(n.loja))}" style="width:100%"></div><div><label>Data</label><input type="date" data-n="${k}" data-f="data" value="${n.data}" style="width:100%"></div></div>
-    <div style="overflow-x:auto"><table><tr><th></th><th>Na nota</th><th>Associar a</th><th>Qtd</th><th>Preço un.</th></tr>${n.itens.map((i,m)=>`<tr><td><input type="checkbox" checked data-n="${k}" data-i="${m}" data-f="on"></td><td>${esc(i.nome)}${i.m.st==='doubt'?' <b class="bad">⚠</b>':''}${i.m.alias?' <small title="Conversão já aprendida">✓</small>':''}</td><td><select data-n="${k}" data-i="${m}" data-f="assoc" style="max-width:190px">${i.m.st==='doubt'?'<option value="?">Confirme o item…</option>':''}${i.m.c.map((x,q)=>`<option value="${x.i.id}" ${i.m.st==='ok'&&q===0?'selected':''}>${esc(x.i.name)}</option>`).join('')}<option value="new" ${i.m.st==='new'?'selected':''}>➕ Novo: ${esc(tc(i.nome))}</option></select></td><td><input type="number" step="any" data-n="${k}" data-i="${m}" data-f="quantidade" value="${i.quantidade||1}" style="width:60px"></td><td><input type="number" step=".01" data-n="${k}" data-i="${m}" data-f="preco_unitario" value="${i.preco_unitario}" style="width:80px"></td></tr>`).join('')}</table></div></div>`}).join('')+'<p class="note">⚠ = dúvida: escolha o item certo ou crie um novo antes de salvar. Depois, dá para revisar no histórico.</p><button class="primary" id="saveNotas" style="width:100%;margin-top:6px">Salvar notas no histórico</button>';
+    <div style="overflow-x:auto"><table><tr><th></th><th>Na nota</th><th>Associar a</th><th>Qtd</th><th>Preço un.</th></tr>${n.itens.map((i,m)=>`<tr><td><input type="checkbox" checked data-n="${k}" data-i="${m}" data-f="on"></td><td>${esc(i.nome)}${i.m.st==='doubt'?' <b class="bad">⚠</b>':''}${i.m.alias?' <small title="Conversão já aprendida neste mercado">✓</small>':''}${i.m.other?' <small title="Associação vista em outro mercado">outro mercado</small>':''}</td><td><select data-n="${k}" data-i="${m}" data-f="assoc" style="max-width:190px">${i.m.st==='doubt'?'<option value="?">Confirme o item…</option>':''}${i.m.c.map((x,q)=>`<option value="${x.i.id}" ${i.m.st==='ok'&&q===0?'selected':''}>${esc(x.i.name)}</option>`).join('')}<option value="new" ${i.m.st==='new'?'selected':''}>➕ Novo: ${esc(tc(i.nome))}</option></select></td><td><input type="number" step="any" data-n="${k}" data-i="${m}" data-f="quantidade" value="${i.quantidade||1}" style="width:60px"></td><td><input type="number" step=".01" data-n="${k}" data-i="${m}" data-f="preco_unitario" value="${i.preco_unitario}" style="width:80px"></td></tr>`).join('')}</table></div></div>`}).join('')+'<p class="note">⚠ = dúvida: escolha o item certo ou crie um novo antes de salvar. Depois, dá para revisar no histórico.</p><button class="primary" id="saveNotas" style="width:100%;margin-top:6px">Salvar notas no histórico</button>';
   $('saveNotas').onclick=saveNotas;
 }
 function saveNotas(){
@@ -278,7 +282,7 @@ function saveNotas(){
       let item=as==='new'?null:data.items.find(i=>String(i.id)===as);
       if(!item)data.items.push(item={id:uid(),name:tc(it.nome),cat:'Outros',checked:true});
       item.checked=true;
-      const an=aliasNorm(it.nome);data.aliases=AL().filter(x=>x.norm!==an);data.aliases.push({text:it.nome,norm:an,name:item.name,sent:0});
+      putAlias(it.nome,item.name,loja);
       data.prices.push({name:item.name,receiptName:it.nome,value:v,qty:q,date:dt,store:loja,ocr:true,grp});c++;
     });
     if(c){logActivity('Importou nota fiscal',(loja||'Nota')+' · '+c+' itens');total+=c}

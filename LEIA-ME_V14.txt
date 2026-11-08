@@ -1,0 +1,10 @@
+MINHA LISTA DE COMPRAS V14  (index.html + compras-supabase.js; substitui a V13)
+
+NOVO
+- Cadastros > Mercados: campo SIGLA (até 5 letras) ao lado do nome amigável. Vazio = sigla automática.
+- Conversões por mercado: a descrição da nota passa a valer para o mercado em que foi confirmada.
+  No mesmo mercado associa sozinho (✓). Vista só em outro mercado, aparece como sugestão para confirmar ("outro mercado").
+  Assim o mesmo item pode ter descrições diferentes em cada mercado, e a mesma descrição pode apontar para itens diferentes.
+- Renomear o nome amigável de um mercado leva junto as conversões dele. Em Cadastros > Itens cada conversão mostra o mercado.
+
+BANCO (já aplicado): shopping_stores.sigla; shopping_product_aliases.store_norm (as 68 conversões atuais foram atribuídas a "Padovani e Pedroso").
