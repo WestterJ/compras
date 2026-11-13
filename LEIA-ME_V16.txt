@@ -1,0 +1,6 @@
+MINHA LISTA DE COMPRAS V16  (index.html + compras-supabase.js; só o index.html mudou em relação à V15)
+
+CORREÇÕES
+- "＋ Produto": a categoria escolhida era ignorada porque o campo "Nova categoria" do menu Cadastros usava o mesmo id (newCat) do seletor da janela e o código lia o campo errado. Id renomeado; o seletor agora é atualizado a cada mudança de categorias e nunca fica vazio.
+- Botão ＋ (registrar preço) na lista: preenchia o formulário da página Preços, que fica escondida; por isso parecia não fazer nada. Agora abre uma janela própria (produto, preço, data, supermercado já preenchido com "Estou em").
+- Ícone do carrinho na aba do navegador (favicon) e no ícone de atalho do celular, embutido no próprio index.html.

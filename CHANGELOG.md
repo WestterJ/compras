@@ -7,3 +7,4 @@
 - V13: edição por toque, ocultar marcados, menu Cadastros (mercados, categorias, itens, conversões), últimas compras editáveis, ciclo de reposição editável + adicionar todas as sugestões, nome da identificação salvo.
 - V14: sigla própria por mercado; conversões de descrição da nota por mercado.
 - V15: login obrigatório (tela de entrada antes de qualquer dado); removidos os dados embutidos no código e o armazenamento local da lista; app abre vazio e carrega da nuvem.
+- V16: corrige categoria perdida ao incluir produto (id duplicado), botão ＋ de preço abre janela própria, ícone do carrinho na aba.
