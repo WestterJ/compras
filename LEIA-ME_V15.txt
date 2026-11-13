@@ -1,0 +1,12 @@
+MINHA LISTA DE COMPRAS V15  (index.html + compras-supabase.js; substitui a V14)
+
+SEGURANÇA / ACESSO
+- O app agora EXIGE login: ao abrir, aparece só a tela de entrada ("Verificando acesso…"); nada da lista é exibido antes.
+- Removidos os dados embutidos no código (lista inicial de 79 itens e 8 preços de exemplo). O app abre vazio e baixa tudo da nuvem depois do login.
+- O app não guarda mais a lista no aparelho: os dados antigos em cache (compras_v1/compras_v2/backup) são apagados ao abrir; ao sair, a tela é limpa.
+- Se houver alteração ainda não enviada, o navegador avisa antes de fechar a página.
+- Os dados continuam protegidos no Supabase por RLS (só participantes da lista leem/escrevem).
+
+OBSERVAÇÕES
+- O nome de quem usa (Família) agora vem da conta e é salvo nela.
+- "Criar conta" continua aberto; quem criar conta vê apenas uma lista própria e vazia, nunca a da família.

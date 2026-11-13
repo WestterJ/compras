@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#003a70">
-<title>Minha Lista de Compras | V14</title>
+<title>Minha Lista de Compras | V15</title>
 <style>
 :root{--bg:#fff9c9;--paper:#fffdf0;--ink:#514d38;--muted:#928b68;--line:#e8dfaa;--accent:#c5a94c;--green:#66835c;--red:#b85b4b;--shadow:0 8px 24px #766b3215}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
@@ -99,10 +99,15 @@ html.dark .auth-card,html.dark .receipt-drop{background:#14263b;border-color:#31
 .price-insight b{font-weight:700}#history small.note{display:block}
 </style>
 <style>.alias{display:flex;gap:4px;align-items:center}.alias button{padding:0 6px}.e-cycle{margin-top:2px}</style>
+<style>#loginGate{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;background:var(--bg,#f1f4f8)}#loginGate[hidden]{display:none}.gate-card{width:100%;max-width:380px;background:var(--paper,#fff);color:var(--ink,#1c2430);border-radius:18px;padding:22px;box-shadow:0 10px 40px rgba(0,0,0,.18)}.gate-card h1{font-size:1.25rem;margin:0 0 8px}.gate-card input{width:100%;margin:6px 0}.gate-card .auth-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}body.locked .app-shell{display:none}</style>
 </head>
-<body>
+<body class="locked">
+<div id="loginGate"><div class="gate-card"><h1>🛒 Minha Lista de Compras</h1><p id="gateMsg" class="note">Verificando acesso…</p>
+ <div id="authForm" hidden><div class="auth-grid"><input id="authEmail" type="email" placeholder="E-mail" autocomplete="username"><input id="authPass" type="password" placeholder="Senha (mínimo 6 caracteres)" autocomplete="current-password"></div>
+  <div class="auth-actions"><button class="primary" type="button" id="btnLogin">Entrar</button><button class="small" type="button" id="btnSignup">Criar conta</button><button class="small" type="button" id="googleLogin">Entrar com Google</button></div></div>
+ <div class="note" id="gateStatus"></div></div></div>
 <header class="app-header">
- <div class="header-left"><button id="mobileMenu" class="mobile-menu-btn" aria-label="Abrir menu">☰</button><div class="brand-mark">🛒</div><div class="brand-copy"><h1>Minha Lista de Compras</h1><small>Versão V14 · Compras em família</small></div></div>
+ <div class="header-left"><button id="mobileMenu" class="mobile-menu-btn" aria-label="Abrir menu">☰</button><div class="brand-mark">🛒</div><div class="brand-copy"><h1>Minha Lista de Compras</h1><small>Versão V15 · Compras em família</small></div></div>
  <div class="header-actions"><span class="cloud-pill" id="headerSync">● <span>Modo local</span></span><button id="themeToggle" class="theme-toggle" aria-label="Alternar tema" title="Alternar tema">◐</button></div>
 </header>
 <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
@@ -173,15 +178,11 @@ html.dark .auth-card,html.dark .receipt-drop{background:#14263b;border-color:#31
   <h2>Família e sincronização</h2>
   <div class="auth-card">
    <b>Conta familiar</b>
-   <div id="authForm"><p class="note">Entre para sincronizar a lista com a família. Sem login, o app continua em modo local.</p>
-    <div class="auth-grid"><input id="authEmail" type="email" placeholder="E-mail" autocomplete="username"><input id="authPass" type="password" placeholder="Senha (mínimo 6 caracteres)" autocomplete="current-password"></div>
-    <div class="auth-actions"><button class="small primary" type="button" id="btnLogin">Entrar</button><button class="small" type="button" id="btnSignup">Criar conta</button><button class="small" type="button" id="googleLogin">Entrar com Google</button></div></div>
-   <div id="authLogged" hidden><p class="note">Conectado como <b id="authWho"></b></p>
+   <div id="authLogged"><p class="note">Conectado como <b id="authWho"></b></p>
     <div class="auth-actions"><button class="small" type="button" id="syncNow">Sincronizar agora</button><button class="small ghost" type="button" id="googleLogout">Sair</button></div>
     <label>Lista</label><select id="listSelect" style="width:100%"></select><div id="familyBox"></div></div>
-   <div class="note" id="authStatus" style="margin-top:8px"></div>
   </div>
-  <div class="note" id="syncStatus">Modo local: ainda não conectado ao Supabase. Cada aparelho mantém seus próprios dados.</div>
+  <div class="note" id="syncStatus">Conectando…</div>
   <label>Seu nome neste aparelho</label><input id="actorName" placeholder="Seu nome" style="width:100%">
   <label>Nome da lista</label><input id="listName" value="Compras da família" style="width:100%">
   <button class="small" id="saveProfile" style="margin-top:8px">Salvar identificação</button>
@@ -220,37 +221,14 @@ html.dark .auth-card,html.dark .receipt-drop{background:#14263b;border-color:#31
 <div id="toast"></div>
 <script>
 let categories=["Carnes e frios","Hortifruti","Laticínios e ovos","Bebidas","Doces e Snacks","Temperos e Condimentos","Conservas","Pães e Padaria","Higiene e limpeza","Grãos e Cereais","Mix funcional","Outros"];
-const seed=[
-["Carnes e frios",["Lombo suíno","Patinho","Paloma","Alcatra bovina","Presunto","Peito de peru","Mussarela fatiada","Bacon","Frango"]],
-["Hortifruti",["Alface","Cenoura","Banana prata","Mamão formosa","Beterraba","Manga Tommy","Limão Tahiti","Abacate","Tomate longa vida","Abóbora cabotiá","Maçã nacional","Abobrinha italiana","Chuchu","Batata-doce","Alho a granel","Cebola","Kiwi","Ameixa"]],
-["Laticínios e ovos",["Requeijão light","Leite Piracanjuba desnatado","Leite Piracanjuba integral","Creme de leite Piracanjuba","Iogurte Danone desnatado","Ovos"]],
-["Bebidas",["Suco La Fruit caju","Suco La Fruit uva","Coca-Cola 200 ml","Coca Zero 200 ml","Água"]],
-["Doces e Snacks",["Pipoca de micro-ondas","Massa de bolo","Goiabada","Brigadeiro de enrolar","Paçoca","Pé de moleque","Barra de proteína Nutrata chocolate ou morango (3)","Bolachas","Achocolatado em pó Toddy","Achocolatado em pó Nescau"]],
-["Temperos e Condimentos",["Folha de louro","Sal refinado","Caldo de carne","Sal de parrilla","Creme de alho","Maionese","Vinagre de álcool"]],
-["Conservas",["Palmito","Azeitona"]],
-["Pães e Padaria",["Pão integral 100% nutrição Do Forno","Pão de forma Amanda","Nutella pequena","Pão francês","Pão de queijo","Pão Wickbold do Forno"]],
-["Higiene e limpeza",["Papel toalha","Sabonete baby Dove","Sacos de lixo","Sabonete líquido banheiro","Desodorante Rexona","Lenço Johnson's"]],
-["Grãos e Cereais",["Arroz","Feijão","Granola tradicional"]],
-["Mix funcional",["Farelo de aveia","Chia","Semente de abóbora","Nibs de cacau","Castanha-do-Pará","Semente de girassol","Linhaça"]]
-];
-let data=JSON.parse(localStorage.getItem("compras_v2")||localStorage.getItem("compras_v1")||"null");
-if(data){data.activity=data.activity||[];data.profile=data.profile||{actor:"",listName:"Compras da família"};}
-if(!data){data={items:[],prices:[],activity:[],profile:{actor:"",listName:"Compras da família"}};seed.forEach(([cat,names])=>names.forEach(name=>data.items.push({id:uid(),name,cat,checked:false})));
- // Preços legíveis nas duas notas enviadas: registros iniciais identificados manualmente.
- data.prices=[
- {name:"Suco La Fruit caju",value:7.99,date:"2026-10-30",store:"Nota enviada"},
- {name:"Suco La Fruit uva",value:7.99,date:"2026-10-30",store:"Nota enviada"},
- {name:"Leite Piracanjuba desnatado",value:3.99,date:"2026-10-30",store:"Nota enviada"},
- {name:"Leite Piracanjuba integral",value:6.99,date:"2026-10-30",store:"Nota enviada"},
- {name:"Coca-Cola 200 ml",value:2.79,date:"2026-10-30",store:"Nota enviada"},
- {name:"Café 3 Corações extraforte",value:29.99,date:"2026-10-30",store:"Nota enviada"},
- {name:"Arroz cristal tradicional",value:28.99,date:"2026-10-30",store:"Nota enviada"},
- {name:"Granola tradicional",value:17.99,date:"2026-10-30",store:"Nota enviada"}
- ];}
+["compras_v1","compras_v2","compras_backup_pre_cloud"].forEach(k=>localStorage.removeItem(k));
+const DEFAULT_CATS=[...categories];
+let data={items:[],prices:[],activity:[],profile:{actor:"",listName:"Compras da família"}};
 function uid(){return Math.random().toString(36).slice(2,10)}
 function ymd(){const d=new Date();return new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10)}
 data.categories=data.categories&&data.categories.length?data.categories:[...categories];categories=data.categories;data.stores=data.stores||[];data.aliases=data.aliases||[];data.catOps=data.catOps||[];data.storeOps=data.storeOps||[];
-function save(){data.activity=data.activity||[];localStorage.setItem("compras_v2",JSON.stringify(data));render()}
+function save(){data.activity=data.activity||[];render()}
+function resetData(){data={items:[],prices:[],activity:[],profile:{actor:"",listName:"Compras da família"},categories:[...DEFAULT_CATS],stores:[],aliases:[],catOps:[],storeOps:[]};categories=data.categories;editId=null;reIdx=-1;openP=null;render()}
 function actor(){return (data.profile&&data.profile.actor)||"Pessoa deste aparelho"}
 function logActivity(action,item){data.activity=data.activity||[];data.activity.unshift({action,item:item||"",actor:actor(),at:new Date().toISOString()});data.activity=data.activity.slice(0,100)}
 

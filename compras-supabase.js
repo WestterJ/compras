@@ -1,5 +1,5 @@
 /* Minha Lista de Compras V14 — Supabase (projeto "Bases"): login, sincronização, família e IA de notas.
-   Sem login o app segue em modo local (localStorage). A chave abaixo é a publishable (pública); nunca use a service_role. */
+   O app exige login e não guarda dados no aparelho: tudo vem da nuvem após entrar. A chave abaixo é a publishable (pública); nunca use a service_role. */
 (()=>{
 const SB_URL='https://ytsabhbkywymtevkeokg.supabase.co',SB_KEY='sb_publishable_cyIolmmdF5zKN0rAOJQOXg_ECcSq7z6';
 const $=id=>document.getElementById(id);
@@ -7,11 +7,14 @@ const sb=window.supabase?.createClient(SB_URL,SB_KEY);
 let me=null,listId=null,role=null,cats={},snap=null,lists=[],members=[],busy=Promise.resolve(),timer=null,dirty=false,aiOk=false,notas=[];
 const AL=()=>data.aliases||(data.aliases=[]);
 const isUUID=s=>/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(s||'');
-const persist=()=>localStorage.setItem('compras_v2',JSON.stringify(data));
+const persist=()=>{};
 const setSync=(t,pill)=>{$('syncStatus').textContent=t;$('headerSync').lastElementChild.textContent=pill||t};
-const auth=m=>{$('authStatus').textContent=m||''};
+const auth=m=>{$('gateStatus').textContent=m||''};
+const gate=(msg,form)=>{document.body.classList.add('locked');$('loginGate').hidden=false;$('gateMsg').textContent=msg;$('authForm').hidden=!form};
+const unlock=()=>{document.body.classList.remove('locked');$('loginGate').hidden=true;$('authPass').value=''};
+window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue=''}});
 window.uid=()=>crypto.randomUUID();
-if(!sb){auth('Biblioteca Supabase não carregou; o app segue em modo local.');return}
+if(!sb){gate('Não foi possível carregar o login. Verifique a internet e recarregue a página.',false);return}
 
 /* ---------- sincronização ---------- */
 const emptySnap=()=>({items:new Map(),pur:{}});
@@ -34,7 +37,6 @@ async function pull(wanted){
   }
   listId=(wanted&&lists.find(l=>l.id===wanted)?.id)||lists.find(l=>l.id===localStorage.compras_list)?.id||lists[0].id;
   localStorage.compras_list=listId;
-  if(!localStorage.compras_backup_pre_cloud)localStorage.compras_backup_pre_cloud=JSON.stringify(data);
   const {data:cr,error:ce}=await sb.from('shopping_categories').select('id,name').eq('list_id',listId).order('sort_order');
   if(ce)throw ce;
   if(!cr.length)await ensureCats();else{cats=Object.fromEntries(cr.map(x=>[x.name,x.id]));data.categories=cr.map(x=>x.name);categories=data.categories}
@@ -176,7 +178,7 @@ $('listSelect').onchange=e=>{busy=busy.then(()=>pull(e.target.value)).then(rende
 
 /* ---------- login ---------- */
 async function afterLogin(user){
-  me=user;$('authForm').hidden=true;$('authLogged').hidden=false;$('authWho').textContent=user.email;setSync('Conectando…','Conectando');
+  me=user;gate('Carregando seus dados…',false);$('authWho').textContent=user.email;setSync('Conectando…','Conectando');
   try{
     const {data:pend}=await sb.from('shopping_members').select('id,invited_email').is('user_id',null);
     for(const p of (pend||[]).filter(x=>(x.invited_email||'').toLowerCase()===user.email.toLowerCase())){
@@ -186,12 +188,12 @@ async function afterLogin(user){
     const {data:a}=await sb.rpc('study_my_access');aiOk=!!(a&&a[0]&&a[0].r_ai);
     $('aiBox').hidden=!aiOk;$('aiDenied').hidden=aiOk;
     const nm=user.user_metadata?.nome;if(nm&&!data.profile.actor){data.profile.actor=nm;persist();render()}
-    setSync('Sincronizado','Nuvem');auth('');
-  }catch(e){setSync('Erro: '+(e.message||e),'Erro');auth('Erro ao carregar a lista: '+(e.message||e))}
+    setSync('Sincronizado','Nuvem');auth('');unlock();
+  }catch(e){const m='Não foi possível carregar a lista: '+(e.message||e);await sb.auth.signOut();auth(m)}
 }
 function afterLogout(){
-  me=listId=role=snap=null;aiOk=false;dirty=false;$('authForm').hidden=false;$('authLogged').hidden=true;
-  $('aiBox').hidden=true;$('aiDenied').hidden=false;setSync('Modo local: os dados ficam só neste aparelho.','Modo local');
+  me=listId=role=snap=null;aiOk=false;dirty=false;notas=[];resetData();
+  $('aiBox').hidden=true;$('aiDenied').hidden=false;setSync('Desconectado','Desconectado');gate('Entre para acessar a lista da família.',true);
 }
 const cred=()=>({email:$('authEmail').value.trim(),password:$('authPass').value});
 $('btnLogin').onclick=async()=>{const {error}=await sb.auth.signInWithPassword(cred());auth(error?'Falha no login: '+error.message:'')};
@@ -201,11 +203,12 @@ $('btnSignup').onclick=async()=>{
 };
 $('googleLogin').onclick=async()=>{const {error}=await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin+location.pathname}});if(error)auth('Falha no login Google: '+error.message)};
 $('googleLogout').onclick=()=>sb.auth.signOut();
+$('authPass').addEventListener('keydown',e=>{if(e.key==='Enter')$('btnLogin').click()});
 window.cloudOn=()=>!!listId;
 window.saveActorName=n=>{if(me)sb.auth.updateUser({data:{nome:n}})};
 sb.auth.onAuthStateChange((ev,s)=>setTimeout(()=>{
   if(s?.user&&me?.id!==s.user.id)afterLogin(s.user);
-  else if(!s&&me)afterLogout();
+  else if(!s?.user){if(me)afterLogout();else gate('Entre para acessar a lista da família.',true)}
 },0));
 
 /* ---------- IA: notas fiscais (modo "nota" da edge function dynamic-service) ---------- */
@@ -290,5 +293,5 @@ function saveNotas(){
   save();notas=[];$('receiptExtracted').innerHTML='';$('receiptPhotos').value='';$('receiptPhotoPreview').innerHTML='';$('receiptAiStatus').textContent='';
   toast(total+' item(ns) salvos no histórico');
 }
-afterLogout();
+gate('Verificando acesso…',false);
 })();

@@ -6,3 +6,4 @@
 - V12: tabela de conversão (shopping_product_aliases) usada na associação das notas; renomear item preserva histórico; notas de 30/10 e 06/11 carregadas no banco.
 - V13: edição por toque, ocultar marcados, menu Cadastros (mercados, categorias, itens, conversões), últimas compras editáveis, ciclo de reposição editável + adicionar todas as sugestões, nome da identificação salvo.
 - V14: sigla própria por mercado; conversões de descrição da nota por mercado.
+- V15: login obrigatório (tela de entrada antes de qualquer dado); removidos os dados embutidos no código e o armazenamento local da lista; app abre vazio e carrega da nuvem.
