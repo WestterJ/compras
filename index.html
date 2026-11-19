@@ -134,7 +134,7 @@ html.dark .auth-card,html.dark .receipt-drop{background:#14263b;border-color:#31
   <div class="row"><input id="search" placeholder="Buscar produto na lista..." aria-label="Buscar produto"><button class="small" id="addOpen">＋ Produto</button></div>
   <div class="toolbar filters" id="filters"></div>
   <div class="row" style="justify-content:space-between"><span class="note" id="progress">0 itens marcados</span><button class="small ghost" id="clearChecks">Desmarcar todos</button></div>
-  <div class="listtools"><button type="button" class="small primary" id="markAll">✔ Marcar todos</button><button type="button" class="small" id="openAll">Expandir</button><button type="button" class="small" id="closeAll">Recolher</button><button type="button" class="small" id="hideDone">🙈 Ocultar marcados</button>
+  <div class="listtools"><button type="button" class="small" id="openAll">Expandir</button><button type="button" class="small" id="closeAll">Recolher</button><button type="button" class="small" id="hideDone">🙈 Ocultar marcados</button>
    <label>Estou em <input id="curStore" list="storeList" placeholder="Supermercado"></label><label>Filtrar <select id="storeFilter"></select></label><datalist id="storeList"></datalist></div>
   <div id="list"></div>
  </div>
@@ -459,7 +459,6 @@ document.getElementById("curStore").oninput=e=>{curStore=e.target.value.trim();l
 document.getElementById("storeFilter").onchange=e=>{storeFilter=e.target.value;render()};
 document.getElementById("openAll").onclick=()=>{categories.forEach(c=>openCats[c]=true);localStorage.setItem('compras_open',JSON.stringify(openCats));render()};
 document.getElementById("closeAll").onclick=()=>{categories.forEach(c=>openCats[c]=false);localStorage.setItem('compras_open',JSON.stringify(openCats));render()};
-document.getElementById("markAll").onclick=()=>{const p=data.items.filter(i=>!i.checked);if(!p.length)return toast("Todos já estão marcados");if(!confirm("Marcar "+p.length+" itens como comprados?"))return;p.forEach(i=>i.checked=true);logActivity("Marcou todos",p.length+" produtos");save()};
 document.getElementById("clearChecks").onclick=()=>{data.items.forEach(i=>i.checked=false);save()};
 document.getElementById("addOpen").onclick=()=>document.getElementById("modal").style.display="flex";
 document.getElementById("closePriceModal").onclick=()=>document.getElementById("priceModal").style.display="none";
