@@ -1,0 +1,3 @@
+MINHA LISTA DE COMPRAS V17  (index.html + compras-supabase.js)
+- Notas fiscais: botão "📷 Tirar foto" abre a câmera do celular direto no app (várias fotos podem ser somadas); "Escolher arquivos" continua para fotos já tiradas.
+- Erro "This model is currently experiencing high demand" (alta demanda do Gemini, HTTP 503) agora aparece em português e com orientação de tentar de novo.

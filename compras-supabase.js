@@ -1,4 +1,4 @@
-/* Minha Lista de Compras V14 — Supabase (projeto "Bases"): login, sincronização, família e IA de notas.
+/* Minha Lista de Compras V17 — Supabase (projeto "Bases"): login, sincronização, família e IA de notas.
    O app exige login e não guarda dados no aparelho: tudo vem da nuvem após entrar. A chave abaixo é a publishable (pública); nunca use a service_role. */
 (()=>{
 const SB_URL='https://ytsabhbkywymtevkeokg.supabase.co',SB_KEY='sb_publishable_cyIolmmdF5zKN0rAOJQOXg_ECcSq7z6';
@@ -216,7 +216,7 @@ const shrink=f=>new Promise((ok,no)=>{const im=new Image();im.onload=()=>{const 
 const SCHEMA={type:'OBJECT',properties:{loja:{type:'STRING'},data:{type:'STRING'},itens:{type:'ARRAY',items:{type:'OBJECT',properties:{nome:{type:'STRING'},quantidade:{type:'NUMBER'},unidade:{type:'STRING'},preco_unitario:{type:'NUMBER'},total:{type:'NUMBER'}},required:['nome','preco_unitario']}}},required:['itens']};
 const SYSTEM='Você extrai dados de fotos de notas fiscais e cupons de supermercado do Brasil. Liste apenas itens legíveis, com nome de produto claro (sem códigos), quantidade, unidade (un, kg, g, L, ml), preço unitário e total em reais como número. A data vai no formato AAAA-MM-DD e a loja é o nome do mercado. Se algo não estiver legível, omita; nunca invente itens.';
 let ctl=null;
-const friendly=e=>/quota|429|rate/i.test(e)?'A cota da IA (Gemini) está esgotada ou limitada; confira o plano no Google AI Studio.':/Unterminated|Expected|JSON|formato/i.test(e)?'A IA devolveu uma resposta incompleta ou inválida.':e;
+const friendly=e=>/high demand|alta demanda|overload|unavailable|503/i.test(e)?'O modelo de IA está com alta demanda agora. Costuma passar em poucos minutos.':/quota|429|rate/i.test(e)?'A cota da IA (Gemini) está esgotada ou limitada; confira o plano no Google AI Studio.':/Unterminated|Expected|JSON|formato/i.test(e)?'A IA devolveu uma resposta incompleta ou inválida.':e;
 function parseLoose(t){
   t=t.replace(/```json|```/g,'').trim();const a=t.indexOf('{');if(a<0)throw new Error('formato inválido');t=t.slice(a);
   const fix=x=>x.replace(/,\s*([}\]])/g,'$1'),cut=t.lastIndexOf('}'),tries=[t,fix(t)];
@@ -229,6 +229,12 @@ $('receiptPhotos').addEventListener('change',e=>{
   files.forEach(f=>{const im=document.createElement('img');im.className='receipt-preview';im.alt='Prévia da nota';im.src=URL.createObjectURL(f);box.append(im)});
   $('analyzeReceiptPhotos').disabled=!files.length||!aiOk;
   $('receiptAiStatus').textContent=files.length?files.length+' foto(s) selecionada(s). A imagem é enviada só para a análise e não é guardada.':'';
+});
+$('takePhoto').onclick=()=>$('receiptCamera').click();
+$('receiptCamera').addEventListener('change',e=>{
+  const novos=[...e.target.files];if(!novos.length)return;
+  const dt=new DataTransfer();[...$('receiptPhotos').files,...novos].forEach(f=>dt.items.add(f));
+  $('receiptPhotos').files=dt.files;e.target.value='';$('receiptPhotos').dispatchEvent(new Event('change'));
 });
 $('cancelReceiptAI').onclick=()=>ctl?.abort();
 $('analyzeReceiptPhotos').onclick=async()=>{
