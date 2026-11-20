@@ -9,3 +9,4 @@
 - V15: login obrigatório (tela de entrada antes de qualquer dado); removidos os dados embutidos no código e o armazenamento local da lista; app abre vazio e carrega da nuvem.
 - V16: corrige categoria perdida ao incluir produto (id duplicado), botão ＋ de preço abre janela própria, ícone do carrinho na aba.
 - V17: botão para tirar foto da nota pela câmera dentro do app; mensagem em português para alta demanda da IA. Nota de 13/11/2026 (23 itens, R$ 284,18) carregada no banco.
+- V18: removido Marcar todos; resumo persistente e orientações nos erros da análise de notas; aviso fixo com "Tentar de novo" quando o salvamento na nuvem falha.

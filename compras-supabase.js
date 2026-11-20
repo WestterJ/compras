@@ -1,4 +1,4 @@
-/* Minha Lista de Compras V17 — Supabase (projeto "Bases"): login, sincronização, família e IA de notas.
+/* Minha Lista de Compras V18 — Supabase (projeto "Bases"): login, sincronização, família e IA de notas.
    O app exige login e não guarda dados no aparelho: tudo vem da nuvem após entrar. A chave abaixo é a publishable (pública); nunca use a service_role. */
 (()=>{
 const SB_URL='https://ytsabhbkywymtevkeokg.supabase.co',SB_KEY='sb_publishable_cyIolmmdF5zKN0rAOJQOXg_ECcSq7z6';
@@ -141,9 +141,19 @@ async function doPush(){
   if(us.length){const {error}=await sb.from('shopping_stores').upsert(us.map(s=>({list_id:listId,alias:s.alias,alias_norm:s.norm,name:s.name,sigla:s.sigla||null})),{onConflict:'list_id,alias_norm'});if(error)throw error;us.forEach(s=>s.sent=1)}
   const na=data.activity.filter(a=>!a.sent);
   if(na.length){const {error}=await sb.from('shopping_activity').insert([...na].reverse().map(a=>({list_id:listId,actor_id:me.id,action:a.action,details:{item:a.item,actor:a.actor}})));if(error)throw error;na.forEach(a=>a.sent=1)}
-  dirty=false;persist();setSync('Sincronizado às '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),'Nuvem');
+  dirty=false;persist();$('syncBanner').hidden=true;setSync('Sincronizado às '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),'Nuvem');
 }
-const push=()=>(busy=busy.then(doPush).catch(e=>{setSync('Erro ao sincronizar: '+(e.message||e),'Erro');toast('Não sincronizou: '+(e.message||e))}));
+const syncHint=e=>{const m=String(e?.message||e),c=e?.code;
+  if(/Failed to fetch|NetworkError|network/i.test(m))return['Sem conexão com a internet.','Suas alterações continuam na tela. Verifique a rede e toque em "Tentar de novo".'];
+  if(/JWT|expired|invalid token|401/i.test(m))return['Sua sessão expirou.','Saia do app e entre de novo. Alterações não enviadas podem se perder.'];
+  if(c==='42501'||/row-level security|permission denied/i.test(m))return['Você não tem permissão para alterar esta lista (acesso somente leitura?).','Peça ao dono da lista para liberar a edição.'];
+  if(c==='23505'||/duplicate key/i.test(m))return['Já existe um registro igual (nome repetido).','Revise o nome do item, mercado ou conversão e tente de novo.'];
+  if(c==='23503'||/foreign key/i.test(m))return['Um item ligado foi apagado em outro aparelho.','Toque em "Sincronizar agora" (menu Família) e refaça a alteração.'];
+  if(c==='23514'||/check constraint/i.test(m))return['Um valor está fora do permitido (sigla com mais de 5 letras ou ciclo fora de 1 a 365 dias).','Corrija o valor e tente de novo.'];
+  return['Erro ao salvar: '+m,'Toque em "Tentar de novo". Se persistir, envie o detalhe técnico abaixo.']};
+const showErr=e=>{const [a,b]=syncHint(e);$('syncBanner').hidden=false;$('syncBannerMsg').innerHTML='<b>⚠ Não foi possível salvar na nuvem.</b><br>'+esc(a)+'<br><small>'+esc(b)+'</small><br><small>Detalhe técnico: '+esc(String(e?.message||e))+'</small>'};
+$('syncRetry').onclick=()=>{$('syncBanner').hidden=true;push()};$('syncClose').onclick=()=>{$('syncBanner').hidden=true};
+const push=()=>(busy=busy.then(doPush).catch(e=>{console.error('[sync]',e);setSync('Erro ao sincronizar','Erro');showErr(e)}));
 const origSave=window.save;
 window.save=function(){
   origSave();if(!listId)return;
@@ -237,11 +247,27 @@ $('receiptCamera').addEventListener('change',e=>{
   $('receiptPhotos').files=dt.files;e.target.value='';$('receiptPhotos').dispatchEvent(new Event('change'));
 });
 $('cancelReceiptAI').onclick=()=>ctl?.abort();
-$('analyzeReceiptPhotos').onclick=async()=>{
-  if(!aiOk)return;const files=[...$('receiptPhotos').files].filter(f=>f.type.startsWith('image/')),st=$('receiptAiStatus');
-  $('analyzeReceiptPhotos').disabled=true;$('cancelReceiptAI').hidden=false;notas=[];
+const hintIA=e=>/high demand|alta demanda|overload|unavailable|503/i.test(e)?['O serviço de IA (Google) estava sobrecarregado, mesmo após trocar para o modelo reserva.','Aguarde alguns minutos e toque em "Tentar de novo".']
+  :/quota|429|rate/i.test(e)?['A cota da IA acabou ou foi limitada.','Tente mais tarde ou confira o plano no Google AI Studio.']
+  :/Limite diário/i.test(e)?['O limite diário de análises foi atingido.','Tente novamente amanhã.']
+  :/Sessão inválida|Autentica|JWT|401/i.test(e)?['Sua sessão expirou.','Saia do app, entre de novo e repita.']
+  :/Unterminated|Expected|JSON|formato|cortada|inválida recebida|sem itens/i.test(e)?['A IA devolveu uma resposta incompleta ou não achou itens (nota longa ou foto difícil de ler).','Fotografe a nota em partes (metade de cima e de baixo), com boa luz e sem reflexo.']
+  :/Imagem inválida/i.test(e)?['A foto não pôde ser lida pelo navegador.','Use JPG ou PNG (fotos HEIC do iPhone podem falhar).']
+  :/Cancelado|130 s|demorou/i.test(e)?['A análise demorou demais ou foi cancelada.','Tente de novo; se repetir, fotografe em partes.']
+  :/Failed to fetch|NetworkError|network/i.test(e)?['Sem conexão com a internet ou o servidor não respondeu.','Verifique a rede e tente de novo.']
+  :['Erro inesperado: '+e,'Tente de novo; se persistir, envie esta mensagem.'];
+let resumo=[],falhas=[];
+function showResumo(){
+  const ok=resumo.filter(r=>r.ok).length,bad=resumo.filter(r=>!r.ok);
+  $('receiptSummary').innerHTML=resumo.length?`<div><b>${ok} de ${resumo.length} foto(s) lida(s).</b></div>`+resumo.map(r=>r.ok?`<div>✅ ${esc(r.nome)}: ${esc(r.txt)}</div>`:`<div>❌ <b>${esc(r.nome)}</b>: ${esc(r.txt)}<br><small>${esc(r.dica)} <span style="opacity:.7">(detalhe: ${esc(r.raw)})</span></small></div>`).join(''):'';
+  $('retryFailed').hidden=!bad.length;$('retryFailed').textContent=`🔁 Tentar de novo ${bad.length===1?'a foto com erro':'as '+bad.length+' fotos com erro'}`;
+}
+async function runAnalysis(files,keep){
+  if(!aiOk||!files.length)return;const st=$('receiptAiStatus');
+  if(!keep){notas=[];resumo=[];falhas=[]}else resumo=resumo.filter(r=>r.ok);
+  falhas=[];$('analyzeReceiptPhotos').disabled=true;$('retryFailed').hidden=true;$('cancelReceiptAI').hidden=false;
   for(const [n,f] of files.entries()){
-    const t0=Date.now(),tick=setInterval(()=>st.textContent=`Analisando foto ${n+1} de ${files.length}… ${Math.round((Date.now()-t0)/1000)} s`,500);
+    const nome=f.name||('Foto '+(n+1)),t0=Date.now(),tick=setInterval(()=>st.textContent=`Analisando ${n+1} de ${files.length}: ${nome}… ${Math.round((Date.now()-t0)/1000)} s`,500);
     ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),130000);let ok=true,err=null,j={};
     try{
       const {data:{session}}=await sb.auth.getSession();
@@ -249,16 +275,23 @@ $('analyzeReceiptPhotos').onclick=async()=>{
         body:JSON.stringify({modo:'nota',systemInstruction:{parts:[{text:SYSTEM}]},contents:[{role:'user',parts:[{text:'Extraia os dados desta nota fiscal.'},{inlineData:{mimeType:'image/jpeg',data:await shrink(f)}}]}],generationConfig:{responseSchema:SCHEMA}})});
       j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||'HTTP '+r.status);
       const txt=(j.candidates?.[0]?.content?.parts||[]).map(p=>p.text||'').join('').replace(/```json|```/g,'');
-      const o=parseLoose(txt);notas.push({loja:o.loja||'',data:/^\d{4}-\d{2}-\d{2}$/.test(o.data)?o.data:ymd(),itens:(o.itens||[]).filter(i=>i.nome&&Number(i.preco_unitario)>0)});
-    }catch(e){ok=false;err=e.name==='AbortError'?'Cancelado ou passou de 130 s':e.message;console.error('[IA nota]',e);st.textContent='Foto '+(n+1)+': '+friendly(err)+' Você pode tentar de novo.'}
+      const o=parseLoose(txt),itens=(o.itens||[]).filter(i=>i.nome&&Number(i.preco_unitario)>0);
+      if(!itens.length)throw new Error('sem itens na resposta');
+      notas.push({loja:o.loja||'',data:/^\d{4}-\d{2}-\d{2}$/.test(o.data)?o.data:ymd(),itens});
+      resumo.push({ok:true,nome,txt:(o.loja||'mercado não identificado')+' · '+itens.length+' itens'});
+    }catch(e){ok=false;err=e.name==='AbortError'?'Cancelado ou passou de 130 s':String(e.message||e);console.error('[IA nota]',e);
+      const [what,how]=hintIA(err);resumo.push({ok:false,nome,txt:what,dica:how,raw:err});falhas.push(f)}
     finally{clearInterval(tick);clearTimeout(to)}
     const u=j.usageMetadata||{};
     sb.rpc('study_log_ai',{p_modo:'compras_nota',p_model:j.modelVersion||'',p_prompt:u.promptTokenCount||0,p_output:u.candidatesTokenCount||0,p_total:u.totalTokenCount||0,p_estimated:!u.totalTokenCount,p_ok:ok,p_error:err,p_ms:Date.now()-t0}).then(()=>{});
     if(!ok&&err.startsWith('Cancelado'))break;
   }
   $('cancelReceiptAI').hidden=true;$('analyzeReceiptPhotos').disabled=false;
-  if(notas.length){st.textContent='Revise os dados abaixo antes de salvar no histórico.';renderNotas()}
-};
+  st.textContent=notas.length?'Revise os dados abaixo antes de salvar no histórico.':'Nenhuma nota foi lida; veja o motivo abaixo.';
+  showResumo();if(notas.length)renderNotas();
+}
+$('analyzeReceiptPhotos').onclick=()=>runAnalysis([...$('receiptPhotos').files].filter(f=>f.type.startsWith('image/')),false);
+$('retryFailed').onclick=()=>runAnalysis([...falhas],true);
 const tk=s=>[...new Set(norm(s).split(/[^a-z0-9]+/).filter(w=>w.length>2))];
 const tc=s=>s.toLowerCase().replace(/(^|\s)\S/g,c=>c.toUpperCase());
 function match(name,store){

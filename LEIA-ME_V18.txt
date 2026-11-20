@@ -1,0 +1,7 @@
+MINHA LISTA DE COMPRAS V18  (index.html + compras-supabase.js)
+- Removido o botão "Marcar todos" da tela inicial.
+- Análise de notas: o resultado de cada foto fica num resumo que NÃO some ("2 de 3 fotos lidas"), com o que houve, como resolver e o detalhe técnico.
+  Botão "Tentar de novo as fotos com erro" repete só as que falharam, sem perder as já lidas.
+  Antes, o aviso de erro era sobrescrito pelo texto de progresso/sucesso e desaparecia em segundos.
+- Erros ao salvar na nuvem: aviso fixo na tela (não some sozinho) com explicação, orientação, detalhe técnico e botão "Tentar de novo".
+  Enquanto houver erro, as alterações continuam na tela e o navegador avisa antes de fechar a página.
